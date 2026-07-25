@@ -13,7 +13,7 @@ public class ParserParallelismTests
         _output = output;
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB",
             Environment.GetEnvironmentVariable("ZILEAN_PYTHON_PYLIB")
-            ?? "/usr/lib/libpython3.11.so.1.0");
+            ?? "/usr/lib/libpython3.12.so.1.0");
     }
 
     [Trait("Category", "RequiresPython")]

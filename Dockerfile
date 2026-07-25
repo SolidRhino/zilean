@@ -1,5 +1,5 @@
 # Build Stage
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS base
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:9.0.316-alpine3.23 AS base
 ARG TARGETARCH
 WORKDIR /build
 COPY . .
@@ -10,13 +10,11 @@ WORKDIR /build/src/Zilean.Scraper
 RUN dotnet publish -c Release --no-restore -a $TARGETARCH -o /app/out
 
 # Run Stage
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.18/main" > /etc/apk/repositories && \
-    echo "https://dl-cdn.alpinelinux.org/alpine/v3.18/community" >> /etc/apk/repositories && \
-    apk update
+FROM mcr.microsoft.com/dotnet/aspnet:9.0.18-alpine3.23
+RUN apk update
 RUN apk add --update --no-cache \
-    python3=~3.11 \
-    py3-pip=~23.1 \
+    python3=~3.12 \
+    py3-pip=~25.1 \
     curl \
     git \
     icu-libs \
@@ -25,7 +23,7 @@ RUN apk add --update --no-cache \
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 ENV PYTHONUNBUFFERED=1
-ENV ZILEAN_PYTHON_PYLIB=/usr/lib/libpython3.11.so.1.0
+ENV ZILEAN_PYTHON_PYLIB=/usr/lib/libpython3.12.so.1.0
 ENV ASPNETCORE_URLS=http://+:8181
 
 WORKDIR /app
