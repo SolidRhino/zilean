@@ -14,7 +14,7 @@ public class PythonParsing
     [GlobalSetup]
     public void Setup()
     {
-        Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", "/opt/homebrew/opt/python@3.11/Frameworks/Python.framework/Versions/3.11/lib/libpython3.11.dylib");
+        Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib");
         var logger = Substitute.For<ILogger<ParseTorrentNameService>>();
         _service = new ParseTorrentNameService(logger, new ZileanConfiguration());
         _oneK = GenerateTorrents(1000);

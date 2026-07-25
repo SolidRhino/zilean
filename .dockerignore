@@ -74,6 +74,7 @@ logs/
 
 # Ignore Docker files
 .dockerignore
+AGENTS.md
 Dockerfile
 
 # Ignore github, k6 and scripts

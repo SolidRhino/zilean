@@ -11,7 +11,7 @@ public class PttPythonTests : IDisposable
     {
         _output = output;
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB",
-            "/opt/homebrew/opt/python@3.11/Frameworks/Python.framework/Versions/3.11/lib/libpython3.11.dylib");
+            "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib");
 
         var loggerParse = Substitute.For<ILogger<ParseTorrentNameService>>();
         _parseTorrentNameService = new ParseTorrentNameService(loggerParse, new ZileanConfiguration());
