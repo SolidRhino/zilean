@@ -16,7 +16,7 @@ public class ConfigurationUpdaterService(ZileanConfiguration configuration, ILog
         if (Environment.GetEnvironmentVariable(ResetApiKeyEnvVar) is "1" or "true")
         {
             configuration.ApiKey = ApiKey.Generate();
-            logger.LogInformation("API Key regenerated:'{ApiKey}'", configuration.ApiKey);
+            logger.LogInformation("API Key regenerated: {ApiKeyPrefix}...", configuration.ApiKey[..Math.Min(6, configuration.ApiKey.Length)]);
             logger.LogInformation("Please keep this key safe and secure.");
         }
 
@@ -38,7 +38,7 @@ public class ConfigurationUpdaterService(ZileanConfiguration configuration, ILog
 
         if (firstRun)
         {
-            logger.LogInformation("Zilean API Key: '{ApiKey}'", configuration.ApiKey);
+            logger.LogInformation("Zilean API Key: {ApiKeyPrefix}... (full key in settings.json)", configuration.ApiKey[..Math.Min(6, configuration.ApiKey.Length)]);
             logger.LogInformation("Please keep this key safe and secure.");
         }
     }
