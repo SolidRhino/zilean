@@ -41,9 +41,12 @@ public static class WebApplicationExtensions
         {
             app.MapStaticAssets();
 
+            app.MapDashboardAuthEndpoints();
+
             app.MapRazorComponents<Dashboard.Components.ZileanWebApp>()
                 .AddInteractiveServerRenderMode()
-                .AddInteractiveWebAssemblyRenderMode();
+                .AddInteractiveWebAssemblyRenderMode()
+                .RequireAuthorization(ApiKeyAuthentication.DashboardPolicy);
 
             Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense("MzU4OTgxNkAzMjM3MmUzMDJlMzBuY2dtNzRCZjAzRmtPTDdGcmFRNXVXTDhTOHdjaU9sNDZPUjBWMEsxSmlNPQ==");
         }

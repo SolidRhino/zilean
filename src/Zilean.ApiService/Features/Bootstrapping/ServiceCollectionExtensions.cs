@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Authorization;
 using Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard;
 
 namespace Zilean.ApiService.Features.Bootstrapping;
@@ -58,13 +59,29 @@ public static class ServiceCollectionExtensions
                 options.DefaultScheme = "None";
                 options.DefaultAuthenticateScheme = "None";
             })
-            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthentication.Scheme, _ => { });
+            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthentication.Scheme, _ => { })
+            .AddCookie(ApiKeyAuthentication.DashboardScheme, options =>
+            {
+                options.Cookie.Name = "ZileanDashboard";
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.ExpireTimeSpan = TimeSpan.FromHours(12);
+                options.LoginPath = "/login";
+                options.LogoutPath = "/logout";
+                options.AccessDeniedPath = "/login";
+            });
 
         services.AddAuthorization(options =>
         {
             options.AddPolicy(ApiKeyAuthentication.Policy, policy =>
             {
                 policy.AuthenticationSchemes.Add(ApiKeyAuthentication.Scheme);
+                policy.RequireAuthenticatedUser();
+            });
+            options.AddPolicy(ApiKeyAuthentication.DashboardPolicy, policy =>
+            {
+                policy.AuthenticationSchemes.Add(ApiKeyAuthentication.DashboardScheme);
                 policy.RequireAuthenticatedUser();
             });
         });
@@ -82,6 +99,8 @@ public static class ServiceCollectionExtensions
         services.AddRazorComponents()
             .AddInteractiveServerComponents()
             .AddInteractiveWebAssemblyComponents();
+
+        services.AddCascadingAuthenticationState();
 
         services.AddSyncfusionBlazor();
 
