@@ -15,7 +15,10 @@ public class ApiKeyAuthenticationHandler(
         }
 
         var configuredApiKey = configuration.ApiKey;
-        if (string.IsNullOrEmpty(configuredApiKey) || extractedApiKey != configuredApiKey)
+        if (string.IsNullOrEmpty(configuredApiKey) ||
+            !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(extractedApiKey!),
+                Encoding.UTF8.GetBytes(configuredApiKey)))
         {
             return Task.FromResult(AuthenticateResult.Fail("Invalid API Key"));
         }
