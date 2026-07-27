@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
                 options.Cookie.Name = "ZileanDashboard";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.ExpireTimeSpan = TimeSpan.FromHours(12);
                 options.LoginPath = "/login";
                 options.LogoutPath = "/logout";

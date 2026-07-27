@@ -80,6 +80,7 @@ public class DashboardAuthTests : IAsyncLifetime
         cookie.Should().NotBeNull("the dashboard auth cookie must be set on successful login");
         cookie.Should().Contain("ZileanDashboard", "the cookie must use the configured name");
         cookie.Should().Contain("httponly", "the cookie must be HttpOnly");
+        cookie.Should().Contain("secure", "the cookie must be Secure (CookieSecurePolicy.Always)");
     }
 
     [Fact]
@@ -110,6 +111,15 @@ public class DashboardAuthTests : IAsyncLifetime
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("zilean-logo",
             "authenticated / should render dashboard chrome (the logo is on Dashboard.razor)");
+
+        // Also exercise the canonical /dashboard route directly (CodeRabbit nitpick):
+        // the /dashboard alias must render the same authenticated content.
+        var dashboardResponse = await authClient.GetAsync("/dashboard");
+        dashboardResponse.StatusCode.Should().Be(HttpStatusCode.OK,
+            "with a valid dashboard cookie, /dashboard should render the dashboard, not redirect");
+        var dashboardBody = await dashboardResponse.Content.ReadAsStringAsync();
+        dashboardBody.Should().Contain("zilean-logo",
+            "authenticated /dashboard should render dashboard chrome");
     }
 
     [Fact]
@@ -138,6 +148,22 @@ public class DashboardAuthTests : IAsyncLifetime
         {
             var body = await response.Content.ReadAsStringAsync();
             body.Should().NotContain("zilean-logo", "the dashboard must not render without auth");
+        }
+
+        // Also exercise the canonical /dashboard route directly (CodeRabbit nitpick):
+        // the /dashboard alias must also be gated without auth.
+        var dashboardResponse = await _client.GetAsync("/dashboard");
+        if (dashboardResponse.StatusCode == HttpStatusCode.Redirect)
+        {
+            var dashboardLocation = dashboardResponse.Headers.Location!;
+            dashboardLocation.AbsolutePath.Should().Be("/login",
+                "unauthenticated /dashboard should redirect to the login page");
+        }
+        else
+        {
+            var dashboardBody = await dashboardResponse.Content.ReadAsStringAsync();
+            dashboardBody.Should().NotContain("zilean-logo",
+                "the /dashboard route must not render without auth");
         }
     }
 
