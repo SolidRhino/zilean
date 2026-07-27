@@ -1,0 +1,12 @@
+@page "/login"
+@layout Zilean.ApiService.Features.Dashboard.Components.Layouts.EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+<div class="login-container">
+    <h1>Zilean Dashboard Login</h1>
+    <form action="/auth/login" method="post">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" name="apiKey" required autocomplete="current-password"/>
+        <button type="submit">Login</button>
+    </form>
+</div>

@@ -9,10 +9,16 @@ namespace Zilean.Tests.Fixtures;
 public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
+    private readonly bool _enableDashboard;
 
-    public ZileanWebApplicationFactory(string connectionString)
+    public ZileanWebApplicationFactory(string connectionString) : this(connectionString, enableDashboard: false)
+    {
+    }
+
+    public ZileanWebApplicationFactory(string connectionString, bool enableDashboard)
     {
         _connectionString = connectionString;
+        _enableDashboard = enableDashboard;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -21,8 +27,11 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB", "/dummy/libpython3.so");
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_VENV", "/dummy/venv");
 
-        // DatabaseConfiguration constructor reads this env var directly, bypassing config binding
+        // DatabaseConfiguration constructor reads this env var directly, bypassing config binding.
         Environment.SetEnvironmentVariable("Zilean__Database__ConnectionString", _connectionString);
+        // AddConfigurationFiles() adds env vars last, which override the in-memory collection
+        // below. Set EnableDashboard via env var so it wins the binding for the dashboard-enabled factory.
+        Environment.SetEnvironmentVariable("Zilean__EnableDashboard", _enableDashboard ? "true" : "false");
 
         builder.UseEnvironment("Testing");
 
@@ -32,12 +41,12 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
             {
                 ["Zilean:Database:ConnectionString"] = _connectionString,
                 ["Zilean:Dmm:EnableScraping"] = "false",
+                ["Zilean:EnableDashboard"] = _enableDashboard.ToString().ToLowerInvariant(),
                 ["Zilean:Dmm:EnableEndpoint"] = "true",
                 ["Zilean:Torznab:EnableEndpoint"] = "true",
                 ["Zilean:Torrents:EnableEndpoint"] = "true",
                 ["Zilean:Imdb:EnableEndpoint"] = "true",
                 ["Zilean:Imdb:EnableImportMatching"] = "false",
-                ["Zilean:EnableDashboard"] = "false",
                 ["Zilean:Ingestion:EnableScraping"] = "false",
             });
         });
