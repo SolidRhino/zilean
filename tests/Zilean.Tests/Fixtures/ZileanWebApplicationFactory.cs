@@ -32,6 +32,12 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
         // AddConfigurationFiles() adds env vars last, which override the in-memory collection
         // below. Set EnableDashboard via env var so it wins the binding for the dashboard-enabled factory.
         Environment.SetEnvironmentVariable("Zilean__EnableDashboard", _enableDashboard ? "true" : "false");
+        // Env vars override settings.json (added last by AddConfigurationFiles), so register the
+        // protected /torrents routes (checkcached, all) for auth-middleware tests. settings.json
+        // defaults these to false, so the in-memory collection alone is insufficient.
+        Environment.SetEnvironmentVariable("Zilean__Torrents__EnableEndpoint", "true");
+        Environment.SetEnvironmentVariable("Zilean__Torrents__EnableCacheCheckEndpoint", "true");
+        Environment.SetEnvironmentVariable("Zilean__Torrents__EnableScrapeEndpoint", "true");
 
         builder.UseEnvironment("Testing");
 
@@ -62,5 +68,19 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
         });
+    }
+
+    /// <summary>
+    /// Creates an <see cref="HttpClient"/> with the <c>X-API-KEY</c> header pre-attached,
+    /// resolving the running app's configured API key from DI. Mirrors the key-resolution
+    /// pattern used by DashboardAuthTests so tests can hit protected endpoints.
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient()
+    {
+        var client = CreateClient();
+        using var scope = Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<ZileanConfiguration>();
+        client.DefaultRequestHeaders.Add("X-API-KEY", config.ApiKey);
+        return client;
     }
 }
