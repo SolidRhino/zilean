@@ -4,6 +4,7 @@ namespace Zilean.Shared.Features.Configuration;
 
 public class DatabaseConfiguration
 {
+    [JsonIgnore]
     public string ConnectionString { get; set; }
 
     public DatabaseConfiguration()

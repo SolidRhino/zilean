@@ -239,6 +239,50 @@ public class ConfigurationTests
         }
     }
 
+    [Fact]
+    public void syncfusion_license_falls_back_to_default_when_env_var_is_empty()
+    {
+        var expected = new ZileanConfiguration().SyncfusionLicense;
+        var saved = Environment.GetEnvironmentVariable("Zilean__SyncfusionLicense");
+        Environment.SetEnvironmentVariable("Zilean__SyncfusionLicense", "");
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddEnvironmentVariables()
+                .Build()
+                .GetZileanConfiguration();
+
+            config.SyncfusionLicense.Should().NotBeNullOrWhiteSpace(
+                "because an empty env var should fall back to the default license");
+            config.SyncfusionLicense.Should().Be(expected,
+                "because the empty value must normalize to the default, not stay empty");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Zilean__SyncfusionLicense", saved);
+        }
+    }
+
+    [Fact]
+    public void syncfusion_license_respects_env_var_override()
+    {
+        var saved = Environment.GetEnvironmentVariable("Zilean__SyncfusionLicense");
+        Environment.SetEnvironmentVariable("Zilean__SyncfusionLicense", "ROTATED_LICENSE_FROM_ENV");
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddEnvironmentVariables()
+                .Build()
+                .GetZileanConfiguration();
+
+            config.SyncfusionLicense.Should().Be("ROTATED_LICENSE_FROM_ENV");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("Zilean__SyncfusionLicense", saved);
+        }
+    }
+
     private static Dictionary<string, string?> ClearDatabaseEnvVars()
     {
         var vars = new[] { "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "Zilean__Database__ConnectionString" };

@@ -20,8 +20,26 @@ public static class ConfigurationExtensions
         return configuration;
     }
 
-    public static ZileanConfiguration GetZileanConfiguration(this IConfiguration configuration) =>
-        configuration.GetSection(ConfigurationLiterals.MainSettingsSectionName).Get<ZileanConfiguration>();
+    public static ZileanConfiguration GetZileanConfiguration(this IConfiguration configuration)
+    {
+        var section = configuration.GetSection(ConfigurationLiterals.MainSettingsSectionName);
+        return NormalizeSyncfusionLicense(section.Get<ZileanConfiguration>());
+    }
+
+    private static ZileanConfiguration NormalizeSyncfusionLicense(ZileanConfiguration? config)
+    {
+        if (config is null)
+        {
+            return new ZileanConfiguration();
+        }
+
+        if (string.IsNullOrWhiteSpace(config.SyncfusionLicense))
+        {
+            config.SyncfusionLicense = ZileanConfiguration.DefaultSyncfusionLicense;
+        }
+
+        return config;
+    }
 
     private static void EnsureConfigurationDirectoryExists(string configurationFolderPath)
     {

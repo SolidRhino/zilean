@@ -4,6 +4,12 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
 {
     private const string RepoUrl = "https://github.com/debridmediamanager/hashlists.git";
     private const string RepoBranch = "main";
+    /// <summary>
+    /// Git credential helper that supplies the GitHub token from the environment ($GITHUB_TOKEN)
+    /// without embedding it in the remote URL or .git/config. Invoked by git as a shell command;
+    /// the token is expanded from the process environment at auth time, never appears in argv or logs.
+    /// </summary>
+    private const string GitCredentialHelper = "!f() { echo \"username=x-access-token\"; echo \"password=$GITHUB_TOKEN\"; }; f";
     private const int MaxRetryAttempts = 5;
     private static readonly TimeSpan _initialRetryDelay = TimeSpan.FromSeconds(5);
 
@@ -34,19 +40,16 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
         var repoDirectory = Path.Combine(dataDirectory, "repo");
         var gitDirectory = Path.Combine(repoDirectory, ".git");
 
-        var githubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN");
-        var repoUrlWithAuth = GetRepoUrlWithAuth(githubToken);
-
         if (Directory.Exists(gitDirectory))
         {
             logger.LogInformation("Repository exists, pulling latest changes");
-            await GitPullAsync(repoDirectory, repoUrlWithAuth, cancellationToken);
+            await GitPullAsync(repoDirectory, RepoUrl, cancellationToken);
         }
         else
         {
             logger.LogInformation("Repository does not exist, cloning");
             EnsureDirectoryIsClean(dataDirectory);
-            await GitCloneAsync(repoUrlWithAuth, repoDirectory, cancellationToken);
+            await GitCloneAsync(RepoUrl, repoDirectory, cancellationToken);
         }
 
         CopyFilesToDataDirectory(repoDirectory, dataDirectory);
@@ -54,19 +57,6 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
         logger.LogInformation("Synced Repository to {DataDirectory}", dataDirectory);
 
         return dataDirectory;
-    }
-
-    private string GetRepoUrlWithAuth(string? githubToken)
-    {
-        if (string.IsNullOrWhiteSpace(githubToken))
-        {
-            logger.LogDebug("No GITHUB_TOKEN environment variable found. Git operations may be rate limited");
-            return RepoUrl;
-        }
-
-        logger.LogInformation("Using GITHUB_TOKEN for authenticated Git operations to avoid rate limiting");
-        // Format: https://<token>@github.com/owner/repo.git
-        return RepoUrl.Replace("https://", $"https://{githubToken}@");
     }
 
     private async Task GitCloneAsync(string repoUrl, string targetDirectory, CancellationToken cancellationToken)
@@ -78,13 +68,22 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = $"clone --depth 1 --branch {RepoBranch} --single-branch \"{repoUrl}\" \"{targetDirectory}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
                 }
             };
+
+            ApplyGitAuth(process.StartInfo);
+            process.StartInfo.ArgumentList.Add("clone");
+            process.StartInfo.ArgumentList.Add("--depth");
+            process.StartInfo.ArgumentList.Add("1");
+            process.StartInfo.ArgumentList.Add("--branch");
+            process.StartInfo.ArgumentList.Add(RepoBranch);
+            process.StartInfo.ArgumentList.Add("--single-branch");
+            process.StartInfo.ArgumentList.Add(repoUrl);
+            process.StartInfo.ArgumentList.Add(targetDirectory);
 
             await RunGitProcessAsync(process, "clone", cancellationToken);
         }, "clone", targetDirectory, cancellationToken);
@@ -92,13 +91,14 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
 
     private async Task GitPullAsync(string repoDirectory, string repoUrl, CancellationToken cancellationToken)
     {
-        // Update the remote URL in case the token changed
+        // Scrub any token-embedded remote URL left by older versions (GetRepoUrlWithAuth embedded
+        // the token directly in .git/config). Reset origin to the public URL — auth is now via
+        // the credential helper, so the remote must not carry credentials.
         var setUrlProcess = new Process
         {
             StartInfo = new ProcessStartInfo
             {
                 FileName = "git",
-                Arguments = $"-C \"{repoDirectory}\" remote set-url origin \"{repoUrl}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -106,9 +106,16 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
             }
         };
 
+        setUrlProcess.StartInfo.ArgumentList.Add("-C");
+        setUrlProcess.StartInfo.ArgumentList.Add(repoDirectory);
+        setUrlProcess.StartInfo.ArgumentList.Add("remote");
+        setUrlProcess.StartInfo.ArgumentList.Add("set-url");
+        setUrlProcess.StartInfo.ArgumentList.Add("origin");
+        setUrlProcess.StartInfo.ArgumentList.Add(RepoUrl);
+
         await RunGitProcessAsync(setUrlProcess, "remote set-url", cancellationToken);
 
-        // Pull latest changes with retry
+        // Pull latest changes with retry. Auth is supplied via the credential helper.
         await ExecuteWithRetryAsync(async () =>
         {
             var pullProcess = new Process
@@ -116,7 +123,6 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = $"-C \"{repoDirectory}\" pull --ff-only",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -124,8 +130,28 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
                 }
             };
 
+            ApplyGitAuth(pullProcess.StartInfo);
+            pullProcess.StartInfo.ArgumentList.Add("-C");
+            pullProcess.StartInfo.ArgumentList.Add(repoDirectory);
+            pullProcess.StartInfo.ArgumentList.Add("pull");
+            pullProcess.StartInfo.ArgumentList.Add("--ff-only");
+
             await RunGitProcessAsync(pullProcess, "pull", cancellationToken);
         }, "pull", repoDirectory, cancellationToken);
+    }
+
+    /// <summary>
+    /// Configures the git process to authenticate via the <c>$GITHUB_TOKEN</c> environment variable
+    /// using an inline credential helper, so the token is never embedded in the remote URL or
+    /// <c>.git/config</c>. Git expands <c>$GITHUB_TOKEN</c> from the process environment at auth
+    /// time; the literal text stays safe in argv. <c>GIT_TERMINAL_PROMPT</c> prevents any
+    /// interactive prompt hanging the sync.
+    /// </summary>
+    private static void ApplyGitAuth(ProcessStartInfo psi)
+    {
+        psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+        psi.ArgumentList.Add("-c");
+        psi.ArgumentList.Add($"credential.helper={GitCredentialHelper}");
     }
 
     private async Task RunGitProcessAsync(Process process, string operation, CancellationToken cancellationToken)

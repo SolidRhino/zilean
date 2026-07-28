@@ -48,7 +48,10 @@ public static class WebApplicationExtensions
                 .AddInteractiveWebAssemblyRenderMode()
                 .RequireAuthorization(ApiKeyAuthentication.DashboardPolicy);
 
-            Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense("MzU4OTgxNkAzMjM3MmUzMDJlMzBuY2dtNzRCZjAzRmtPTDdGcmFRNXVXTDhTOHdjaU9sNDZPUjBWMEsxSmlNPQ==");
+            if (!string.IsNullOrWhiteSpace(configuration.SyncfusionLicense))
+            {
+                Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(configuration.SyncfusionLicense);
+            }
         }
 
         app.MapOpenApi();
