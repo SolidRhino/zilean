@@ -13,7 +13,7 @@ public class ZileanConfiguration
     /// keep working out of the box; override via the <c>Zilean__SyncfusionLicense</c> env var to
     /// rotate without rebuilding. Empty/unset falls back to the default below.
     /// </summary>
-    private const string DefaultSyncfusionLicense =
+    internal const string DefaultSyncfusionLicense =
         "MzU4OTgxNkAzMjM3MmUzMDJlMzBuY2dtNzRCZjAzRmtPTDdGcmFRNXVXTDhTOHdjaU9sNDZPUjBWMEsxSmlNPQ==";
 
     public string? SyncfusionLicense { get; set; } = DefaultSyncfusionLicense;

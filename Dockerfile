@@ -20,7 +20,7 @@ RUN apk add --update --no-cache \
     icu-libs \
     tzdata \
     && ln -sf python3 /usr/bin/python
-RUN addgroup -S zilean && adduser -S -G zilean zilean
+RUN addgroup -S -g 101 zilean && adduser -S -u 100 -G zilean zilean
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 ENV PYTHONUNBUFFERED=1
@@ -32,6 +32,10 @@ COPY --from=base /app/out .
 COPY --from=base /build/requirements.txt .
 RUN rm -rf /app/python || true && \
     mkdir -p /app/python /app/data || true
+# When bind-mounting /app/data (persistence), the host dir overrides this image layer's
+# ownership. Create and chown it on the host before starting the container:
+#   mkdir -p ./data && chown -R 100:101 ./data
+# (uid=100, gid=101 are the zilean user/group created above).
 RUN pip3 install -r /app/requirements.txt -t /app/python
 
 RUN chown -R zilean:zilean /app
