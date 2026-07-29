@@ -2,7 +2,6 @@ namespace Zilean.ApiService.Features.Bootstrapping;
 
 public class StartupService(
     ZileanConfiguration configuration,
-    IShellExecutionService executionService,
     IServiceProvider serviceProvider,
     ILoggerFactory loggerFactory) : IHostedLifecycleService
 {
@@ -99,8 +98,7 @@ public class StartupService(
         if (configuration.Dmm.EnableScraping)
         {
             await using var asyncScope = serviceProvider.CreateAsyncScope();
-            var dbContext = asyncScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-            var dmmJob = new DmmSyncJob(executionService, loggerFactory.CreateLogger<DmmSyncJob>(), dbContext);
+            var dmmJob = asyncScope.ServiceProvider.GetRequiredService<DmmSyncJob>();
             var pagesExist = await dmmJob.ShouldRunOnStartup();
             if (!pagesExist)
             {

@@ -28,69 +28,96 @@ public partial class DmmFileEntryProcessor(
 
     private async Task ProduceEntriesAsync(ChannelWriter<Task<ExtractedDmmEntry>> writer, CancellationToken cancellationToken)
     {
-        var totalFiles = _filesToProcess.Count;
-        var processedFiles = 0;
-        var skippedFiles = 0;
-        var newTorrentsFound = 0;
-        var lastProgressLog = Stopwatch.StartNew();
-
-        foreach (var file in _filesToProcess)
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                _logger.LogInformation("Processing canceled.");
-                break;
-            }
+            var totalFiles = _filesToProcess.Count;
+            var processedFiles = 0;
+            var skippedFiles = 0;
+            var newTorrentsFound = 0;
+            var lastProgressLog = Stopwatch.StartNew();
+            var parsedPagesBuffer = new List<ParsedPages>();
 
-            var fileName = Path.GetFileName(file);
-            if (ExistingPages.TryGetValue(fileName, out _) || NewPages.TryGetValue(fileName, out _))
+            foreach (var file in _filesToProcess)
             {
-                skippedFiles++;
-                processedFiles++;
-                continue;
-            }
-
-            try
-            {
-                var torrents = await ProcessPageAsync(file, fileName, cancellationToken);
-                newTorrentsFound += torrents.Count;
-                foreach (var torrent in torrents)
+                if (cancellationToken.IsCancellationRequested)
                 {
-                    await writer.WriteAsync(Task.FromResult(torrent), cancellationToken);
+                    _logger.LogInformation("Processing canceled.");
+                    break;
+                }
+
+                var fileName = Path.GetFileName(file);
+                if (ExistingPages.TryGetValue(fileName, out _) || NewPages.TryGetValue(fileName, out _))
+                {
+                    skippedFiles++;
+                    processedFiles++;
+                    continue;
+                }
+
+                try
+                {
+                    var (torrents, page) = await ProcessPageAsync(file, fileName, cancellationToken);
+                    NewPages.TryAdd(fileName, page.EntryCount);
+                    parsedPagesBuffer.Add(page);
+                    newTorrentsFound += torrents.Count;
+                    foreach (var torrent in torrents)
+                    {
+                        await writer.WriteAsync(Task.FromResult(torrent), cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error processing file: {FileName}", fileName);
+                }
+
+                // Flush the ParsedPages buffer outside the per-file catch so DB write failures
+                // propagate instead of being swallowed as per-file parse errors.
+                if (parsedPagesBuffer.Count >= _configuration.Parsing.BatchSize)
+                {
+                    await dmmService.AddPagesToIngestedAsync(parsedPagesBuffer, cancellationToken);
+                    parsedPagesBuffer.Clear();
+                }
+
+                processedFiles++;
+
+                // Log progress every 60 seconds
+                if (lastProgressLog.Elapsed.TotalSeconds >= 60)
+                {
+                    var percentage = totalFiles > 0 ? (double)processedFiles / totalFiles * 100 : 0;
+                    _logger.LogInformation("DMM sync progress: {Processed}/{Total} files ({Percentage:F1}%), {Skipped} skipped, {NewTorrents} new torrents found",
+                        processedFiles, totalFiles, percentage, skippedFiles, newTorrentsFound);
+                    lastProgressLog.Restart();
                 }
             }
-            catch (Exception ex)
+
+            // Final progress log
+            if (processedFiles > 0)
             {
-                _logger.LogError(ex, "Error processing file: {FileName}", fileName);
+                _logger.LogInformation("DMM sync complete: {Processed}/{Total} files processed, {Skipped} skipped, {NewTorrents} new torrents found",
+                    processedFiles, totalFiles, skippedFiles, newTorrentsFound);
             }
 
-            processedFiles++;
-
-            // Log progress every 60 seconds
-            if (lastProgressLog.Elapsed.TotalSeconds >= 60)
+            if (parsedPagesBuffer.Count > 0)
             {
-                var percentage = totalFiles > 0 ? (double)processedFiles / totalFiles * 100 : 0;
-                _logger.LogInformation("DMM sync progress: {Processed}/{Total} files ({Percentage:F1}%), {Skipped} skipped, {NewTorrents} new torrents found",
-                    processedFiles, totalFiles, percentage, skippedFiles, newTorrentsFound);
-                lastProgressLog.Restart();
+                await dmmService.AddPagesToIngestedAsync(parsedPagesBuffer, cancellationToken);
+                parsedPagesBuffer.Clear();
             }
+
+            writer.Complete();
         }
-
-        // Final progress log
-        if (processedFiles > 0)
+        catch (Exception ex)
         {
-            _logger.LogInformation("DMM sync complete: {Processed}/{Total} files processed, {Skipped} skipped, {NewTorrents} new torrents found",
-                processedFiles, totalFiles, skippedFiles, newTorrentsFound);
+            // Complete the channel with the error so the consumer's ReadAllAsync unblocks
+            // instead of hanging Task.WhenAll in ProcessAsync when a DB flush throws.
+            writer.Complete(ex);
+            throw;
         }
-
-        writer.Complete();
     }
 
-    private async Task<List<ExtractedDmmEntry>> ProcessPageAsync(string filePath, string filenameOnly, CancellationToken cancellationToken)
+    private async Task<(List<ExtractedDmmEntry> Torrents, ParsedPages Page)> ProcessPageAsync(string filePath, string filenameOnly, CancellationToken cancellationToken)
     {
         if (!File.Exists(filePath))
         {
-            return [];
+            return ([], new ParsedPages { EntryCount = 0, Page = filenameOnly });
         }
 
         var pageSource = await File.ReadAllTextAsync(filePath, cancellationToken);
@@ -98,8 +125,7 @@ public partial class DmmFileEntryProcessor(
 
         if (!match.Success)
         {
-            await AddParsedPage(filenameOnly, 0, cancellationToken);
-            return [];
+            return ([], new ParsedPages { EntryCount = 0, Page = filenameOnly });
         }
 
         var torrents = _torrentsListPool.Get();
@@ -116,8 +142,7 @@ public partial class DmmFileEntryProcessor(
 
             if (torrents.Count == 0)
             {
-                await AddParsedPage(filenameOnly, 0, cancellationToken);
-                return [];
+                return ([], new ParsedPages { EntryCount = 0, Page = filenameOnly });
             }
 
             var sanitizedTorrents = torrents
@@ -128,14 +153,12 @@ public partial class DmmFileEntryProcessor(
                 .OfType<ExtractedDmmEntry>()
                 .ToList();
 
-            await AddParsedPage(filenameOnly, sanitizedTorrents.Count, cancellationToken);
-            return sanitizedTorrents;
+            return (sanitizedTorrents, new ParsedPages { EntryCount = sanitizedTorrents.Count, Page = filenameOnly });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error parsing file: {FilePath}", filePath);
-            await AddParsedPage(filenameOnly, 0, cancellationToken);
-            return [];
+            return ([], new ParsedPages { EntryCount = 0, Page = filenameOnly });
         }
         finally
         {
@@ -193,16 +216,6 @@ public partial class DmmFileEntryProcessor(
         _logger.LogInformation("Loaded {Count} previously parsed pages", ExistingPages.Count);
     }
 
-    private async Task AddParsedPage(string filename, int entryCount, CancellationToken cancellationToken)
-    {
-        await dmmService.AddPageToIngestedAsync(new ParsedPages
-        {
-            EntryCount = entryCount,
-            Page = filename
-        }, cancellationToken);
-
-        NewPages.TryAdd(filename, entryCount);
-    }
 
     [SuppressMessage("Style", "IDE0010:Add missing cases")]
     private static void ParseTorrents(ref Utf8JsonReader reader, List<ExtractedDmmEntry> torrents)
