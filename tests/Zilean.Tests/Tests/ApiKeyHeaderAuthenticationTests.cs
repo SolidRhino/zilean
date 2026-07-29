@@ -52,12 +52,9 @@ public class ApiKeyHeaderAuthenticationTests(PostgresLifecycleFixture fixture)
     {
         var client = fixture.Factory.CreateAuthenticatedClient();
         var response = await client.PutAsync("/blacklist/add?info_hash=nonexistenthash&reason=test", null);
-        // Auth passes; the endpoint may return 204 (success) or 409/400 depending on validation.
-        // Asserting not-401 proves auth passed; asserting not-404 proves the route is registered.
-        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized,
-            "because a correct X-API-KEY header must pass the auth middleware");
-        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
-            "because the /blacklist/add route must be registered for this test to exercise auth");
+        // Auth passes; the hash is not already blacklisted, so AddBlacklistItem succeeds with 204.
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            "because a correct X-API-KEY must pass auth and the new hash is added successfully");
     }
 
     [Fact]
@@ -65,12 +62,9 @@ public class ApiKeyHeaderAuthenticationTests(PostgresLifecycleFixture fixture)
     {
         var client = fixture.Factory.CreateAuthenticatedClient();
         var response = await client.GetAsync("/torrents/checkcached?Hashes=testhash");
-        // Auth passes; the endpoint returns 200/400 depending on hash validation.
-        // Asserting not-401 proves auth passed; asserting not-404 proves the route is registered.
-        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized,
-            "because a correct X-API-KEY header must pass the auth middleware");
-        response.StatusCode.Should().NotBe(HttpStatusCode.NotFound,
-            "because the /torrents/checkcached route must be registered for this test to exercise auth");
+        // Auth passes; a single hash under MaxHashesToCheck returns 200 with the cache-check result.
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "because a correct X-API-KEY must pass auth and a single hash returns the cached status");
     }
 
     // D. Empty X-API-KEY header -> 401 (handler branch: empty value)
