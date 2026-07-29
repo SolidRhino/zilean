@@ -40,7 +40,12 @@ public static class SearchEndpoints
         return group;
     }
 
-    private static async Task PerformOnDemandScrape(HttpContext context, ILogger<GeneralInstance> logger, IShellExecutionService executionService, ILogger<DmmSyncJob> syncLogger, IMutex mutex, SyncOnDemandState state, ZileanDbContext dbContext)
+    private static async Task PerformOnDemandScrape(
+        HttpContext context,
+        ILogger<GeneralInstance> logger,
+        IMutex mutex,
+        SyncOnDemandState state,
+        DmmSyncJob dmmJob)
     {
         if (state.IsRunning)
         {
@@ -58,7 +63,7 @@ public static class SearchEndpoints
             {
                 logger.LogInformation("On-demand scrape mutex lock acquired.");
                 state.IsRunning = true;
-                await new DmmSyncJob(executionService, syncLogger, dbContext).Invoke();
+                await dmmJob.Invoke();
             }
             finally
             {
