@@ -167,9 +167,9 @@ public class ConfigurationValidationTests
 
         var errors = config.Validate();
 
-        // 8 rules broken: MaxFilteredResults, MinimumScoreMatch, MinimumReDownloadIntervalMinutes,
-        // Dmm.ScrapeSchedule, Ingestion.ScrapeSchedule, BatchSize, ConnectionString — 7 distinct rules,
-        // but the two invalid cron schedules each produce their own error, totaling 7 errors.
+        // 7 distinct validation rules are violated, each producing one error:
+        // MaxFilteredResults, MinimumScoreMatch, MinimumReDownloadIntervalMinutes,
+        // Dmm.ScrapeSchedule, Ingestion.ScrapeSchedule, BatchSize, ConnectionString.
         errors.Should().HaveCount(7,
             "because 7 validation rules are violated: MaxFilteredResults, MinimumScoreMatch, " +
             "MinimumReDownloadIntervalMinutes, Dmm.ScrapeSchedule, Ingestion.ScrapeSchedule, BatchSize, ConnectionString");

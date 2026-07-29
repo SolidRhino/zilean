@@ -69,7 +69,9 @@ public class BlacklistEndpointsTests(PostgresLifecycleFixture fixture)
         var client = fixture.Factory.CreateAuthenticatedClient();
         var hash = "testhash-blacklist-003";
 
-        await client.PutAsync($"/blacklist/add?info_hash={hash}&reason=test", null);
+        var firstAdd = await client.PutAsync($"/blacklist/add?info_hash={hash}&reason=test", null);
+        firstAdd.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            "because the first add of a new hash must succeed before testing the duplicate");
         var response = await client.PutAsync($"/blacklist/add?info_hash={hash}&reason=test", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict,
@@ -97,6 +99,10 @@ public class BlacklistEndpointsTests(PostgresLifecycleFixture fixture)
         var exists = await dbContext.Torrents.AnyAsync(x => x.InfoHash == TempTorrentHash);
         exists.Should().BeFalse(
             "because blacklisting a hash must delete the matching torrent from the DB");
+
+        var blacklisted = await dbContext.BlacklistedItems.AnyAsync(x => x.InfoHash == TempTorrentHash);
+        blacklisted.Should().BeTrue(
+            "because blacklisting a hash must persist a BlacklistedItems record");
     }
 
     [Fact]
@@ -138,8 +144,9 @@ public class BlacklistEndpointsTests(PostgresLifecycleFixture fixture)
     {
         var client = fixture.Factory.CreateAuthenticatedClient();
         var hash = "testhash-blacklist-006";
-
-        await client.PutAsync($"/blacklist/add?info_hash={hash}&reason=test", null);
+        var initialAdd = await client.PutAsync($"/blacklist/add?info_hash={hash}&reason=test", null);
+        initialAdd.StatusCode.Should().Be(HttpStatusCode.NoContent,
+            "because the initial add must succeed before testing removal");
 
         var removeResponse = await client.DeleteAsync($"/blacklist/remove?infoHash={hash}");
         removeResponse.StatusCode.Should().Be(HttpStatusCode.NoContent,
