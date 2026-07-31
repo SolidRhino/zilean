@@ -104,7 +104,8 @@ public static class ServiceCollectionExtensions
         services.AddSyncfusionBlazor();
 
         services.AddScoped<DashboardDataAdapter>();
-        services.AddSingleton<ParseTorrentNameService>();
+        services.AddSingleton<PythonRuntimeService>();
+        services.AddSingleton<TorrentParser>();
 
         return services;
     }

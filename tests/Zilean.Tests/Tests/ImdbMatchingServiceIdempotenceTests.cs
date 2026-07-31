@@ -7,15 +7,19 @@ namespace Zilean.Tests.Tests;
 public class ImdbMatchingServiceIdempotenceTests
 {
     private readonly ZileanConfiguration _configuration;
+    private readonly IDbContextFactory<ZileanDbContext> _dbContextFactory;
 
-    public ImdbMatchingServiceIdempotenceTests(PostgresLifecycleFixture fixture) =>
+    public ImdbMatchingServiceIdempotenceTests(PostgresLifecycleFixture fixture)
+    {
         _configuration = fixture.ZileanConfiguration;
+        _dbContextFactory = fixture.DbContextFactory;
+    }
 
     [Fact]
     public async Task ImdbLuceneMatchingService_PopulateImdbData_CalledMultipleTimes_InitializesOnlyOnce()
     {
         var logger = Substitute.For<ILogger<ImdbLuceneMatchingService>>();
-        var service = new ImdbLuceneMatchingService(logger, _configuration);
+        var service = new ImdbLuceneMatchingService(logger, _configuration, _dbContextFactory);
 
         try
         {
@@ -39,7 +43,7 @@ public class ImdbMatchingServiceIdempotenceTests
     public async Task ImdbLuceneMatchingService_PopulateImdbData_AfterDispose_ReinitializesOnNextCall()
     {
         var logger = Substitute.For<ILogger<ImdbLuceneMatchingService>>();
-        var service = new ImdbLuceneMatchingService(logger, _configuration);
+        var service = new ImdbLuceneMatchingService(logger, _configuration, _dbContextFactory);
 
         try
         {
@@ -63,7 +67,7 @@ public class ImdbMatchingServiceIdempotenceTests
     public async Task ImdbFuzzyStringMatchingService_PopulateImdbData_CalledMultipleTimes_InitializesOnlyOnce()
     {
         var logger = Substitute.For<ILogger<ImdbFuzzyStringMatchingService>>();
-        var service = new ImdbFuzzyStringMatchingService(logger, _configuration);
+        var service = new ImdbFuzzyStringMatchingService(logger, _configuration, _dbContextFactory);
 
         try
         {
@@ -87,7 +91,7 @@ public class ImdbMatchingServiceIdempotenceTests
     public async Task ImdbFuzzyStringMatchingService_PopulateImdbData_AfterDispose_ReinitializesOnNextCall()
     {
         var logger = Substitute.For<ILogger<ImdbFuzzyStringMatchingService>>();
-        var service = new ImdbFuzzyStringMatchingService(logger, _configuration);
+        var service = new ImdbFuzzyStringMatchingService(logger, _configuration, _dbContextFactory);
 
         try
         {

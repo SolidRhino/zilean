@@ -2,7 +2,7 @@ namespace Zilean.Scraper.Features.Ingestion.Dmm;
 
 public class DmmScraping(
     DmmFileDownloader downloader,
-    ParseTorrentNameService parseTorrentNameService,
+    TorrentParser parseTorrentNameService,
     ITorrentInfoService torrentInfoService,
     ZileanConfiguration configuration,
     ILogger<DmmScraping> logger,

@@ -1,12 +1,11 @@
 namespace Zilean.Database.Services;
 
-public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfiguration configuration, IServiceProvider serviceProvider)
+public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory, IImdbMatchingService imdbMatchingService)
     : BaseDapperService(logger, configuration), ITorrentInfoService
 {
     public async Task VaccumTorrentsIndexes(CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         await dbContext.Database.ExecuteSqlRawAsync("VACUUM (VERBOSE, ANALYZE) \"Torrents\"", cancellationToken: cancellationToken);
     }
@@ -24,11 +23,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
             torrentInfo.CleanedParsedTitle = Parsing.CleanQuery(torrentInfo.ParsedTitle);
         }
 
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-        await using var connection = new NpgsqlConnection(Configuration.Database.ConnectionString);
-        var imdbMatchingService = serviceScope.ServiceProvider.GetRequiredService<IImdbMatchingService>();
-
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         long populateMs = 0;
         long matchMs = 0;
         long upsertMs = 0;
@@ -185,8 +180,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
 
     public async Task<HashSet<string>> GetExistingInfoHashesAsync(List<string> infoHashes)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
         var existingHashes = await dbContext.Torrents
             .Where(t => infoHashes.Contains(t.InfoHash))
@@ -198,9 +192,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
 
     public async Task<HashSet<string>> GetBlacklistedItems()
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var existingHashes = await dbContext.BlacklistedItems
             .Select(t => t.InfoHash)
             .ToListAsync();

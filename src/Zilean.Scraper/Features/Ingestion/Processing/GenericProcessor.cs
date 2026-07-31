@@ -5,7 +5,7 @@ namespace Zilean.Scraper.Features.Ingestion.Processing;
 public abstract class GenericProcessor<TInput>(
     ILoggerFactory loggerFactory,
     ITorrentInfoService torrentInfoService,
-    ParseTorrentNameService parseTorrentNameService,
+    TorrentParser parseTorrentNameService,
     ZileanConfiguration configuration)
     where TInput : class
 {

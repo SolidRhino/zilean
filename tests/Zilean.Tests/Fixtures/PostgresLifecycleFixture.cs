@@ -11,6 +11,7 @@ public class PostgresLifecycleFixture : IAsyncLifetime
 
     public ZileanConfiguration ZileanConfiguration { get; } = new();
     public ZileanWebApplicationFactory Factory { get; private set; } = null!;
+    public IDbContextFactory<ZileanDbContext> DbContextFactory => Factory.Services.GetRequiredService<IDbContextFactory<ZileanDbContext>>();
 
     public PostgresLifecycleFixture() =>
         DerivePathInfo(

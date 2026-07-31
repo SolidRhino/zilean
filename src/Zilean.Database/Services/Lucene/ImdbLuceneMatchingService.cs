@@ -6,7 +6,7 @@ using Zilean.Database.Services.Common;
 
 namespace Zilean.Database.Services.Lucene;
 
-public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger, ZileanConfiguration configuration) : IImdbMatchingService
+public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbMatchingService
 {
     private MemoryCache? _imdbCache;
     private LuceneSession? _imdbFilesIndex;
@@ -240,11 +240,9 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
 
         logger.LogInformation("Indexing IMDb entries...");
 
-        await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
-        await sqlConnection.OpenAsync();
-
-        var imdbFiles = sqlConnection.QueryUnbufferedAsync<ImdbFile>(
-            """
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+        var imdbFiles = db.ImdbFiles
+            .FromSqlRaw("""
             SELECT
                 "ImdbId",
                 Lower(
@@ -262,7 +260,9 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
                 public."ImdbFiles"
             WHERE
                 "Category" IN ('tvSeries', 'tvShort', 'tvMiniSeries', 'tvSpecial', 'movie', 'tvMovie')
-            """);
+            """)
+            .AsNoTracking()
+            .AsAsyncEnumerable();
 
         await foreach (var imdb in imdbFiles)
         {

@@ -51,7 +51,7 @@ public static class HealthCheckEndpoints
 
         if (configuration.EnableDashboard)
         {
-            var ptn = serviceProvider.GetService<ParseTorrentNameService>();
+            var ptn = serviceProvider.GetService<PythonRuntimeService>();
             pythonAvailable = ptn?.IsAvailable ?? false;
         }
 

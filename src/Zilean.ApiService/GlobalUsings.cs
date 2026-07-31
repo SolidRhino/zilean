@@ -50,6 +50,7 @@ global using Zilean.Shared.Features.Configuration;
 global using Zilean.Shared.Features.Dmm;
 global using Zilean.Shared.Features.Python;
 global using Zilean.Shared.Features.Scraping;
+global using Zilean.Shared.Features.Torrents;
 global using Zilean.Shared.Features.Shell;
 global using Zilean.Shared.Features.Torznab;
 global using Zilean.Shared.Features.Torznab.Categories;

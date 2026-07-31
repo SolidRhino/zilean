@@ -3,7 +3,7 @@
 public partial class DmmFileEntryProcessor(
     DmmService dmmService,
     ITorrentInfoService torrentInfoService,
-    ParseTorrentNameService parseTorrentNameService,
+    TorrentParser parseTorrentNameService,
     ILoggerFactory loggerFactory,
     ZileanConfiguration configuration) : GenericProcessor<ExtractedDmmEntry>(loggerFactory, torrentInfoService, parseTorrentNameService, configuration)
 {

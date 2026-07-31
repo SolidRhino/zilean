@@ -5,7 +5,8 @@ namespace Zilean.Tests.Tests;
 public class PttPythonTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
-    private readonly ParseTorrentNameService _parseTorrentNameService;
+    private readonly TorrentParser _parseTorrentNameService;
+    private readonly PythonRuntimeService _runtime;
 
     public PttPythonTests(ITestOutputHelper output)
     {
@@ -13,8 +14,9 @@ public class PttPythonTests : IDisposable
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB",
             "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib");
 
-        var loggerParse = Substitute.For<ILogger<ParseTorrentNameService>>();
-        _parseTorrentNameService = new ParseTorrentNameService(loggerParse, new ZileanConfiguration());
+        var loggerParse = Substitute.For<ILogger<PythonRuntimeService>>();
+        _runtime = new PythonRuntimeService(loggerParse, new ZileanConfiguration());
+        _parseTorrentNameService = new TorrentParser(_runtime, Substitute.For<ILogger<TorrentParser>>(), new ZileanConfiguration());
     }
 
     [Trait("Category", "RequiresPython")]
@@ -98,6 +100,5 @@ public class PttPythonTests : IDisposable
 
         return torrents;
     }
-
-    public void Dispose() => _parseTorrentNameService.StopPythonEngine().GetAwaiter().GetResult();
+    public void Dispose() => _runtime.StopPythonEngine().GetAwaiter().GetResult();
 }
