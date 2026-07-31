@@ -1,4 +1,5 @@
 using Zilean.Shared.Features.Python;
+using Zilean.Tests.Collections;
 
 namespace Zilean.Tests.Tests;
 
@@ -7,6 +8,7 @@ namespace Zilean.Tests.Tests;
 /// an empty ZILEAN_PYTHON_PYLIB causes InitializePythonEngine to return a faulted Task
 /// BEFORE any pythonnet native call. No DB, no Python runtime, no RequiresPython trait.
 /// </summary>
+[Collection(nameof(SerializedEnvVarCollection))]
 public class PythonUnavailableTests
 {
     [Fact]

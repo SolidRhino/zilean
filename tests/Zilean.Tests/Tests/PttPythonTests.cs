@@ -1,7 +1,10 @@
 using Zilean.Shared.Features.Python;
 
+using Zilean.Tests.Collections;
+
 namespace Zilean.Tests.Tests;
 
+[Collection(nameof(SerializedEnvVarCollection))]
 public class PttPythonTests : IDisposable
 {
     private readonly ITestOutputHelper _output;

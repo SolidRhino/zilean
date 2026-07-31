@@ -1,6 +1,7 @@
 using Zilean.ApiService.Features.Torznab;
 using Zilean.Shared.Features.Torznab;
 using Zilean.Shared.Features.Torznab.Parameters;
+using Zilean.Tests.Collections;
 
 namespace Zilean.Tests.Tests;
 
@@ -10,6 +11,7 @@ namespace Zilean.Tests.Tests;
 /// (snapshot/restore in finally) to simulate a disabled capability, then assert the
 /// throw→error-900 and 201 branches are reachable. No host, no DB.
 /// </summary>
+[Collection(nameof(ApiTestCollection))]
 public class TorznabQueryValidationTests
 {
     private static TorznabQuery MovieImdbQuery() => new()

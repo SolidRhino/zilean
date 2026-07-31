@@ -96,6 +96,7 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
 
         PyModule? scope = null;
         dynamic gc = null;
+        dynamic runSingle = null;
 
         try
         {
@@ -103,14 +104,12 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
 
             var torrentDict = torrents.ToDictionary(t => t.InfoHash!, t => t);
 
-            var infoBatches = torrents
+            var infos = torrents
                 .Select(x => new List<object>
                 {
                     x.Filename!,
                     x.InfoHash!
                 })
-                .ToList()
-                .ToChunks(batchSize)
                 .ToList();
 
             using (Py.GIL())
@@ -118,40 +117,36 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
                 scope = Py.CreateScope();
                 scope.Exec(ParserScript);
                 gc = scope.Get("gc");
-                dynamic runSingle = scope.Get("parse_torrent_single");
+                runSingle = scope.Get("parse_torrent_single");
                 var verbose = _configuration.Parsing.VerboseLogging;
 
-                foreach (var batch in infoBatches)
+                foreach (var info in infos)
                 {
-                    foreach (var info in batch)
+                    dynamic result = runSingle(info, verbose);
+                    try
                     {
-                        dynamic result = runSingle(info, verbose);
-                        try
+                        string infoHash = result["infoHash"].As<string>();
+                        var parsedResult = result["result"];
+
+                        if (!torrentDict.TryGetValue(infoHash, out ExtractedDmmEntry? torrent))
                         {
-                            var infoHash = result["infoHash"].As<string>();
-                            var parsedResult = result["result"];
-
-                            var torrent = torrentDict[infoHash];
-                            if (torrent is null)
-                            {
-                                continue;
-                            }
-
-                            ParseTorrentTitleResponse parsedResponse = ParseResult(parsedResult);
-                            if (!parsedResponse.Success)
-                            {
-                                continue;
-                            }
-
-                            parsedResponse.Response.InfoHash = torrent.InfoHash;
-                            parsedResponse.Response.Size = torrent.Filesize.ToString();
-                            parsedResponse.Response.RawTitle = torrent.Filename;
-                            torrent.ParseResponse = parsedResponse.Response;
+                            continue;
                         }
-                        finally
+
+                        ParseTorrentTitleResponse parsedResponse = ParseResult(parsedResult);
+                        if (!parsedResponse.Success)
                         {
-                            result.Dispose();
+                            continue;
                         }
+
+                        parsedResponse.Response.InfoHash = torrent.InfoHash;
+                        parsedResponse.Response.Size = torrent.Filesize.ToString();
+                        parsedResponse.Response.RawTitle = torrent.Filename;
+                        torrent.ParseResponse = parsedResponse.Response;
+                    }
+                    finally
+                    {
+                        result.Dispose();
                     }
                 }
             }
@@ -165,6 +160,7 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
         {
             using (Py.GIL())
             {
+                runSingle?.Dispose();
                 gc?.collect();
                 scope?.Dispose();
             }

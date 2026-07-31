@@ -2,9 +2,9 @@ using System.Net.Http;
 using Zilean.Database.Services;
 using Zilean.Scraper.Features.Ingestion.Processing;
 using Zilean.Shared.Features.Python;
+using Zilean.Tests.Collections;
 
 namespace Zilean.Tests.Tests;
-
 /// <summary>
 /// Unit tests for the generic ingestion producer path (URL/header construction per
 /// GenericEndpointType + exception-swallow loop). These exercise
@@ -13,6 +13,7 @@ namespace Zilean.Tests.Tests;
 /// arrays keep the consumer's batch processor idle); it is covered conceptually by
 /// ParserParallelismTests and the benchmark.
 /// </summary>
+[Collection(nameof(SerializedEnvVarCollection))]
 public class IngestionPipelineTests
 {
     private sealed class RecordingHandler : DelegatingHandler

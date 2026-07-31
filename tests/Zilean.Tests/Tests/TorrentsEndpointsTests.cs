@@ -151,5 +151,7 @@ public class TorrentsEndpointsTests
         matrix.GetProperty("name").GetString().Should().Be(
             "The.Matrix.1999.2160p.UHD.BluRay.X265-IAMABLE",
             "because the Matrix seed row's RawTitle is the stream name");
+        matrix.GetProperty("size").GetInt64().Should().Be(15,
+            "because the seed Size '15.5 GB' is parsed via leading digits to 15, proving the TryParse fix");
     }
 }

@@ -10,7 +10,7 @@ namespace Zilean.Tests.Tests;
 /// AFTER CreateClient (so the host starts cleanly) but BEFORE the /ready request (so
 /// the lazy PythonRuntimeService singleton faults on first resolution).
 /// </summary>
-[Collection(nameof(ApiTestCollection))]
+[Collection(nameof(SerializedEnvVarCollection))]
 public class PythonUnavailableHealthCheckTests : IAsyncLifetime
 {
     private readonly PostgresLifecycleFixture _fixture;
