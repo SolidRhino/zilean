@@ -43,18 +43,18 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 12. **Perf Finding 2 — Sync-over-async IMDb load** (MED, FIXED): Lucene `QueryUnbufferedAsync` + `await foreach`; Fuzzy buffered `QueryAsync`.
 13. **Arch Finding 7 — Rename `ConditionallyRegisterDmmJob`** (LOW, FIXED): renamed to `RegisterSyncJobs`. No behavior change.
 
-### Tier 5 — Larger refactors (higher risk, more design)
+### Tier 5 — Larger refactors (DONE — PR #8)
 
-14. **Arch Finding 1 — Service-locator anti-pattern** (HIGH): replace `IServiceProvider` + `CreateAsyncScope` with constructor-injected `IDbContextFactory<ZileanDbContext>`. Touches ~20 call sites across `TorrentInfoService`/`ImdbFileService`/`DmmService`; do after Tier 3/4 so the codebase is otherwise stable.
-15. **Arch Finding 4 — Business logic in endpoint classes** (MED): extract `IBlacklistService` (owns workflow + transaction) and a torrents query service. Enables reuse from dashboard + tests; should land with or after GAP 2.
-16. **Arch Finding 5 — Singleton IMDb matchers bypass data layer** (MED): inject `IImdbFileService` instead of direct `NpgsqlConnection`. Coordinate with Perf Finding 2 (same files).
-17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED): establish a clear read/write boundary or consolidate. Best done after Finding 1 and Finding 5 settle the data-access pattern.
-18. **Arch Finding 3 — God class `ParseTorrentNameService`** (MED): split into `PythonRuntimeService` + `TorrentParser` + `CategoryClassifier`. Large but mechanical; the `CategoryClassifier` extraction also unblocks TestGap GAP 5.
+14. **Arch Finding 1 — Service-locator anti-pattern** (HIGH, FIXED): replaced `IServiceProvider` + `CreateAsyncScope` with constructor-injected `IDbContextFactory<ZileanDbContext>` via `AddDbContextFactory`. All data services (`TorrentInfoService`/`ImdbFileService`/`DmmService`/`EnsureMigrated`) use `CreateDbContextAsync()`.
+15. **Arch Finding 4 — Business logic in endpoint classes** (MED, FIXED): extracted `IBlacklistService` (owns add/remove + cascade torrent delete) and `ITorrentsQueryService` (owns `CheckCachedAsync` + `StreamAllAsync`). Endpoints are thin HTTP delegates mapping `BlacklistResult` → status codes.
+16. **Arch Finding 5 — Singleton IMDb matchers bypass data layer** (MED, FIXED): `ImdbLuceneMatchingService`/`ImdbFuzzyStringMatchingService` inject `IDbContextFactory` + use `FromSqlRaw` instead of raw `NpgsqlConnection`.
+17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED, FIXED): Dapper for PG-function reads (`search_torrents_meta`, `search_imdb_meta`), EF via `IDbContextFactory` for entity writes. `DmmService` dropped `BaseDapperService` inheritance.
+18. **Arch Finding 3 — God class `ParseTorrentNameService`** (MED, FIXED): split into `PythonRuntimeService` (engine lifecycle) + `TorrentParser` (RTN orchestration) + `CategoryClassifier` (static category detection).
 
 ### Tier 6 — Remaining test gaps + perf tuning
 
 19. **TestGap GAP 4 — Generic ingestion pipeline tests** (HIGH): URL/header construction per `EndpointType` + exception loop. Lands cleanly after Arch Finding 3/4 settle the ingestion structure.
-20. **TestGap GAP 5 — Python-unavailable branch tests** (MED): unsets `ZILEAN_PYTHON_PYLIB`, asserts `IsAvailable == false`, hits `/healthchecks/ready`. Easier once `CategoryClassifier` is split out (Arch Finding 3).
+20. **TestGap GAP 5 — Python-unavailable branch tests** (MED): unsets `ZILEAN_PYTHON_PYLIB`, asserts `IsAvailable == false`, hits `/healthchecks/ready`. Unblocked by Arch Finding 3 (`CategoryClassifier` split out — `PythonRuntimeService.IsAvailable` is the target).
 21. **TestGap GAP 6 — Torznab/search error + DB-down tests** (MED): error 900/201 + fault-injection. Needs stable endpoints from Tier 3/5.
 22. **TestGap GAP 7 — `/torrents/checkcached` + `/torrents/all` tests** (LOW): validation bounds + stream. Unblocked by GAP 1 (Tier 2); deferred because it also benefits from Perf Finding 4 landing first.
 23. **Perf Finding 5 — GIL-bound asyncio parsing** (MED): replace with a sync for-loop or multi-interpreter subprocesses. Needs careful benchmarking; do last to avoid churn.
@@ -173,15 +173,15 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 3 (MED)
+### FIXED — Finding 3 (MED, PR #8)
 
-**Path:** `src/Zilean.Shared/Features/Python/ParseTorrentNameService.cs:1-318,356-399`
+**Path:** `src/Zilean.Shared/Features/Python/{PythonRuntimeService,TorrentParser,CategoryClassifier}.cs` (was `ParseTorrentNameService.cs`)
 
-**Description:** God class: `ParseTorrentNameService` conflates four responsibilities in one 410-line class: (a) Python runtime lifecycle (`InitializePythonEngine`/`StopPythonEngine`, GIL handling, `_mainThreadState`), (b) an 84-line embedded RTN parser script constant, (c) batch + single-torrent parse orchestration with manual `PyObject` disposal (`ParseAndPopulateAsync`, `ParseAndPopulateTorrentInfoAsync`), and (d) static category-classification business rules (`DetectCategory` + `_bookExtensions`/`_audiobookKeywords`). It is registered as both `AddSingleton` (ApiService) and `AddSingleton` (Scraper). WHY IT MATTERS: the static `DetectCategory` rules are pure domain logic with no Python dependency yet are unreachable for unit testing without the engine; runtime hosting concerns are tangled with parsing.
+**Description:** God class: `ParseTorrentNameService` conflated four responsibilities in one 410-line class: (a) Python runtime lifecycle (`InitializePythonEngine`/`StopPythonEngine`, GIL handling, `_mainThreadState`), (b) an 84-line embedded RTN parser script constant, (c) batch + single-torrent parse orchestration with manual `PyObject` disposal (`ParseAndPopulateAsync`, `ParseAndPopulateTorrentInfoAsync`), and (d) static category-classification business rules (`DetectCategory` + `_bookExtensions`/`_audiobookKeywords`). WHY IT MATTERS: the static `DetectCategory` rules are pure domain logic with no Python dependency yet were unreachable for unit testing without the engine.
 
-**Remediation:** Split into separate classes: a `PythonRuntimeService` (lifecycle + GIL), a `TorrentParser` (orchestration + script), and a `CategoryClassifier` (static rules, pure, testable).
+**Remediation:** Split into `PythonRuntimeService` (lifecycle + GIL), `TorrentParser` (orchestration + script), and `CategoryClassifier` (static rules, pure, testable). DONE.
 
-**Verified:** Still 410 lines; all four responsibilities still in one class.
+**Verified:** Fixed in PR #8. `CategoryDetectionTests` (27 tests) pass against `CategoryClassifier`.
 
 ---
 
@@ -287,9 +287,9 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ### OPEN — GAP 5 (MED)
 
-**Path:** `src/Zilean.Shared/Features/Python/ParseTorrentNameService.cs:356-410` + `src/Zilean.ApiService/Features/HealthChecks/HealthCheckEndpoints.cs:33-58`
+**Path:** `src/Zilean.Shared/Features/Python/PythonRuntimeService.cs` + `src/Zilean.ApiService/Features/HealthChecks/HealthCheckEndpoints.cs:33-58`
 
-**Description:** `ParseTorrentNameService` has no coverage outside the `RequiresPython`-tagged tests, and the Python-unavailable branch is entirely untested. `InitializePythonEngine` returns `Task.FromException` when `ZILEAN_PYTHON_PYLIB` is unset or when `PythonEngine.Initialize` throws; `IsAvailable` then reports false; the `/healthchecks/ready` endpoint surfaces `pythonAvailable=false` as 'degraded'. The only `ParseTorrentNameService` tests (`PttPythonTests`, `ParserParallelismTests`) are tagged `RequiresPython` and skip in CI; `CategoryDetectionTests` exercises only the static `DetectCategory` heuristic, not the Python interop. Why it matters: in any environment without the exact `libpython3.12` dylib, ingestion silently degrades and the health check's degraded state is untested.
+**Description:** `PythonRuntimeService` has no coverage outside the `RequiresPython`-tagged tests, and the Python-unavailable branch is entirely untested. `InitializePythonEngine` returns `Task.FromException` when `ZILEAN_PYTHON_PYLIB` is unset or when `PythonEngine.Initialize` throws; `IsAvailable` then reports false; the `/healthchecks/ready` endpoint surfaces `pythonAvailable=false` as 'degraded'. The only `PythonRuntimeService` tests (`PttPythonTests`, `ParserParallelismTests`) are tagged `RequiresPython` and skip in CI; `CategoryDetectionTests` exercises only the static `CategoryClassifier.DetectCategory` heuristic, not the Python interop. Why it matters: in any environment without the exact `libpython3.12` dylib, ingestion silently degrades and the health check's degraded status is the only signal.
 
 **Remediation:** Add a test that unsets `ZILEAN_PYTHON_PYLIB`, constructs the service, asserts `IsAvailable == false`, and hits `/healthchecks/ready` expecting degraded.
 
@@ -373,7 +373,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ### OPEN — Finding 5 (MED)
 
-**Path:** `src/Zilean.Shared/Features/Python/ParseTorrentNameService.cs:147-151` + `src/Zilean.Shared/Features/Configuration/ParserConcurrency.cs:7-8`
+**Path:** `src/Zilean.Shared/Features/Python/TorrentParser.cs:143-151` + `src/Zilean.Shared/Features/Configuration/ParserConcurrency.cs:7-8`
 
 **Description:** GIL-bound parsing with ineffective asyncio concurrency. The entire batch run executes inside a single `using (Py.GIL())` block (line 147); `run_process_batches` launches asyncio tasks gated by a `Semaphore(maxConcurrentTasks)`. RTN's `parse()` is CPU-bound pure Python, so the GIL serializes it regardless of the semaphore — the asyncio concurrency adds task/scheduling overhead without throughput gain. `ParserConcurrency` caps at `min(ProcessorCount, 8)`. Impact: on >8-core hosts the cap leaves cores idle; the asyncio overhead (task creation, semaphore, context switches) is pure cost for CPU-bound work.
 
