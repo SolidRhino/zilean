@@ -14,12 +14,14 @@ public class ImdbMatcherThroughputTests
     private readonly ZileanConfiguration _configuration;
     private readonly ZileanWebApplicationFactory _factory;
     private readonly ITestOutputHelper _output;
+    private readonly IDbContextFactory<ZileanDbContext> _dbContextFactory;
 
     public ImdbMatcherThroughputTests(PostgresLifecycleFixture fixture, ITestOutputHelper output)
     {
         _configuration = fixture.ZileanConfiguration;
         _factory = fixture.Factory;
         _output = output;
+        _dbContextFactory = fixture.DbContextFactory;
     }
 
     [Fact]
@@ -28,12 +30,11 @@ public class ImdbMatcherThroughputTests
         await SeedImdbFilesIfNeeded();
         var batches = BuildBatches();
         var logger = Substitute.For<ILogger<ImdbLuceneMatchingService>>();
-
         var hoistedTime = await TimeHoistedPath(
-            () => new ImdbLuceneMatchingService(logger, _configuration),
+            () => new ImdbLuceneMatchingService(logger, _configuration, _dbContextFactory),
             batches);
         var perBatchTime = await TimePerBatchPath(
-            () => new ImdbLuceneMatchingService(logger, _configuration),
+            () => new ImdbLuceneMatchingService(logger, _configuration, _dbContextFactory),
             batches);
 
         _output.WriteLine($"[Lucene] hoisted: {hoistedTime.TotalMilliseconds:F0}ms, per-batch: {perBatchTime.TotalMilliseconds:F0}ms (×{perBatchTime.TotalMilliseconds / hoistedTime.TotalMilliseconds:F1} slower)");

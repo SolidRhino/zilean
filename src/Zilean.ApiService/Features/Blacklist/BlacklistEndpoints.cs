@@ -33,30 +33,19 @@ public static class BlacklistEndpoints
         return group;
     }
 
-    private static async Task<IResult> RemoveBlacklistItem(HttpContext context, ZileanDbContext dbContext, ILogger<BlacklistLogger> logger, [FromQuery] string infoHash)
+    private static async Task<IResult> RemoveBlacklistItem(HttpContext context, IBlacklistService blacklistService, ILogger<BlacklistLogger> logger, [FromQuery] string infoHash)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(infoHash))
+            var result = await blacklistService.RemoveAsync(infoHash, context.RequestAborted);
+
+            return result switch
             {
-                logger.LogWarning("Attempted to remove blacklisted item with empty info hash");
-                return Results.BadRequest("InfoHash is required");
-            }
-
-            var item = await dbContext.BlacklistedItems.FirstOrDefaultAsync(x => x.InfoHash == infoHash);
-
-            if (item == null)
-            {
-                logger.LogWarning("Attempted to remove non-existent blacklisted item {InfoHash}", infoHash);
-                return Results.NotFound();
-            }
-
-            dbContext.BlacklistedItems.Remove(item);
-            await dbContext.SaveChangesAsync();
-
-            logger.LogInformation("Removed blacklisted item {InfoHash}", infoHash);
-
-            return Results.NoContent();
+                BlacklistResult.InvalidHash => Results.BadRequest("InfoHash is required"),
+                BlacklistResult.NotFound => Results.NotFound(),
+                BlacklistResult.Added => Results.NoContent(),
+                _ => Results.BadRequest("An error occurred while removing a blacklisted item")
+            };
         }
         catch (Exception e)
         {
@@ -65,45 +54,20 @@ public static class BlacklistEndpoints
         }
     }
 
-    private static async Task<IResult> AddBlacklistItem(HttpContext context, ZileanDbContext dbContext, [AsParameters] BlacklistItemRequest request, ILogger<BlacklistLogger> logger)
+    private static async Task<IResult> AddBlacklistItem(HttpContext context, IBlacklistService blacklistService, [AsParameters] BlacklistItemRequest request, ILogger<BlacklistLogger> logger)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(request.info_hash))
-            {
-                return Results.BadRequest("info_hash is required");
-            }
+            var result = await blacklistService.AddAsync(request.info_hash, request.reason, context.RequestAborted);
 
-            if (string.IsNullOrWhiteSpace(request.reason))
+            return result switch
             {
-                return Results.BadRequest("reason is required");
-            }
-
-            if (await dbContext.BlacklistedItems.AnyAsync(x => x.InfoHash == request.info_hash))
-            {
-                return Results.Conflict("Item already blacklisted");
-            }
-
-            var blacklistedItem = new BlacklistedItem
-            {
-                InfoHash = request.info_hash,
-                Reason = request.reason,
-                BlacklistedAt = DateTime.UtcNow
+                BlacklistResult.InvalidHash => Results.BadRequest("info_hash is required"),
+                BlacklistResult.InvalidReason => Results.BadRequest("reason is required"),
+                BlacklistResult.AlreadyBlacklisted => Results.Conflict("Item already blacklisted"),
+                BlacklistResult.Added => Results.NoContent(),
+                _ => Results.BadRequest("An error occurred while adding a blacklisted item")
             };
-
-            dbContext.BlacklistedItems.Add(blacklistedItem);
-
-            var torrentInfo = await dbContext.Torrents.FirstOrDefaultAsync(x => x.InfoHash == request.info_hash);
-
-            if (torrentInfo != null)
-            {
-                dbContext.Torrents.Remove(torrentInfo);
-                logger.LogInformation("Removed torrent {InfoHash} from database", request.info_hash);
-            }
-
-            await dbContext.SaveChangesAsync();
-
-            return Results.NoContent();
         }
         catch (Exception e)
         {

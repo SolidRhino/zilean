@@ -1,4 +1,4 @@
-﻿namespace Zilean.ApiService.Features.Torrents;
+namespace Zilean.Shared.Features.Torrents;
 
 public class CachedItem
 {

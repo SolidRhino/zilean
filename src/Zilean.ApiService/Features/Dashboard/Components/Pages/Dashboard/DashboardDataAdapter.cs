@@ -1,13 +1,12 @@
 ﻿namespace Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard;
 
-public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrentNameService parseTorrentNameService, ILogger<DashboardDataAdapter> logger) : DataAdaptor
+public class DashboardDataAdapter(IDbContextFactory<ZileanDbContext> dbContextFactory, TorrentParser parseTorrentNameService, PythonRuntimeService pythonRuntimeService, ILogger<DashboardDataAdapter> logger) : DataAdaptor
 {
     public override async Task<object> ReadAsync(DataManagerRequest dataManagerRequest, string? key = null)
     {
         try
         {
-            await using var scope = serviceProvider.CreateAsyncScope();
-            await using var dbContext = scope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
             var dataSource = dbContext
                 .Torrents
@@ -71,8 +70,7 @@ public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrent
                 return null;
             }
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            await using var dbContext = scope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
             var torrent = DashboardTorrentDetails.ToTorrentInfo(incoming);
             torrent = await UpdateTorrentAttributes(incoming, torrent, true);
@@ -97,8 +95,7 @@ public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrent
                 return null;
             }
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            await using var dbContext = scope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
             var torrent = await dbContext.Torrents.AsNoTracking().FirstOrDefaultAsync(x=> x.InfoHash == incoming.InfoHash);
             if (torrent == null)
@@ -130,8 +127,7 @@ public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrent
                 return null;
             }
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            await using var dbContext = scope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
             var result = await dbContext.Torrents.Where(x=>x.InfoHash == incoming).ExecuteDeleteAsync();
             return result == 0 ? throw new InvalidOperationException("No records were deleted") : value;
@@ -153,8 +149,7 @@ public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrent
                 return key;
             }
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            await using var dbContext = scope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
             var deletedIds = ((IEnumerable<DashboardTorrentDetails>)deleted).Select(x => x.InfoHash).ToList();
             var result = await dbContext.Torrents.Where(x => deletedIds.Contains(x.InfoHash)).ExecuteDeleteAsync();
@@ -176,7 +171,7 @@ public class DashboardDataAdapter(IServiceProvider serviceProvider, ParseTorrent
             torrent = await parseTorrentNameService.ParseAndPopulateTorrentInfoAsync(torrent);
             torrent.CleanedParsedTitle = Parsing.CleanQuery(torrent.ParsedTitle);
         }
-        catch (Exception) when (!parseTorrentNameService.IsAvailable)
+        catch (Exception) when (!pythonRuntimeService.IsAvailable)
         {
             logger.LogWarning("Python engine unavailable - dashboard re-parse disabled. Keeping existing torrent data.");
         }

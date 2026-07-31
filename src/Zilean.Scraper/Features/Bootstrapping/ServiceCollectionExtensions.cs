@@ -14,7 +14,8 @@ public static class ServiceCollectionExtensions
         services.AddDmmServices();
         services.AddGenericServices();
         services.AddZileanDataServices(zileanConfiguration);
-        services.AddSingleton<ParseTorrentNameService>();
+        services.AddSingleton<PythonRuntimeService>();
+        services.AddSingleton<TorrentParser>();
         services.AddHostedService<EnsureMigrated>();
     }
 

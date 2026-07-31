@@ -1,13 +1,12 @@
 namespace Zilean.Database.Services;
 
-public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguration configuration, IServiceProvider serviceProvider) : BaseDapperService(logger, configuration), IImdbFileService
+public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : BaseDapperService(logger, configuration), IImdbFileService
 {
     private ConcurrentBag<ImdbFile> ImdbFiles { get; } = [];
     public void AddImdbFile(ImdbFile imdbFile) => ImdbFiles.Add(imdbFile);
     public async Task StoreImdbFiles()
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
         if (ImdbFiles.IsEmpty)
         {
@@ -43,9 +42,7 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguratio
 
     public async Task VaccumImdbFilesIndexes(CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         await dbContext.Database.ExecuteSqlRawAsync("VACUUM (VERBOSE, ANALYZE) \"ImdbFiles\"", cancellationToken: cancellationToken);
     }
 
@@ -76,8 +73,7 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguratio
 
     public async Task<ImdbLastImport?> GetImdbLastImportAsync(CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
         var imdbLastImport = await dbContext.ImportMetadata.AsNoTracking().FirstOrDefaultAsync(x => x.Key == MetadataKeys.ImdbLastImport, cancellationToken: cancellationToken);
 
@@ -86,9 +82,7 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguratio
 
     public async Task SetImdbLastImportAsync(ImdbLastImport imdbLastImport)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var metadata = await dbContext.ImportMetadata.FirstOrDefaultAsync(x => x.Key == MetadataKeys.ImdbLastImport);
 
         if (metadata is null)

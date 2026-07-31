@@ -42,7 +42,7 @@ public static class TorrentsEndpoints
         return group;
     }
 
-    private static async Task<IResult> CheckCachedTorrents(HttpContext context, ZileanDbContext dbContext, ILogger<CheckCachedRequest> logger, ZileanConfiguration configuration, [AsParameters] CheckCachedRequest request)
+    private static async Task<IResult> CheckCachedTorrents(HttpContext context, ITorrentsQueryService torrentsQueryService, ILogger<CheckCachedRequest> logger, ZileanConfiguration configuration, [AsParameters] CheckCachedRequest request)
     {
         try
         {
@@ -53,45 +53,17 @@ public static class TorrentsEndpoints
             }
 
             var hashes = request.Hashes.Split(',');
-            if (hashes.Length >= configuration.Torrents.MaxHashesToCheck)
+
+            try
+            {
+                var items = await torrentsQueryService.CheckCachedAsync(hashes, configuration.Torrents.MaxHashesToCheck, context.RequestAborted);
+                return Results.Ok(items);
+            }
+            catch (ArgumentException)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return Results.BadRequest(new ErrorResponse(string.Format(TooManyHashesError, configuration.Torrents.MaxHashesToCheck)));
             }
-
-            var hashSet = new HashSet<string>(hashes);
-
-            var items = await dbContext
-                .Torrents
-                .AsNoTracking()
-                .Where(record => hashSet.Contains(record.InfoHash))
-                .Select(record => new CachedItem
-                {
-                    InfoHash = record.InfoHash,
-                    IsCached = true,
-                    Item = record
-                })
-                .ToListAsync();
-            var matchedHashes = new HashSet<string>(
-                items.Select(x => x.InfoHash!),
-                StringComparer.OrdinalIgnoreCase);
-
-            foreach (var hash in hashSet)
-            {
-                if (matchedHashes.Contains(hash))
-                {
-                    continue;
-                }
-
-                items.Add(new CachedItem
-                {
-                    InfoHash = hash,
-                    IsCached = false,
-                    Item = null
-                });
-            }
-
-            return Results.Ok(items);
         }
         catch (Exception ex)
         {
@@ -100,7 +72,7 @@ public static class TorrentsEndpoints
         }
     }
 
-    private static async Task StreamTorrents(HttpContext context, ZileanDbContext dbContext, ILogger<StreamLogger> logger)
+    private static async Task StreamTorrents(HttpContext context, ITorrentsQueryService torrentsQueryService, ILogger<StreamLogger> logger)
     {
         var sw = Stopwatch.StartNew();
         logger.LogInformation("Starting to stream torrents to client: {Client}", context.Connection.RemoteIpAddress);
@@ -115,15 +87,7 @@ public static class TorrentsEndpoints
 
             var firstItem = true;
 
-            await foreach (var item in dbContext.Torrents
-                               .Select(record => new StreamedEntry
-                               {
-                                   Name = record.RawTitle,
-                                   InfoHash = record.InfoHash,
-                                   Size = long.Parse(record.Size),
-                               })
-                               .AsAsyncEnumerable()
-                               .WithCancellation(context.RequestAborted))
+            await foreach (var item in torrentsQueryService.StreamAllAsync(context.RequestAborted))
             {
                 if (!firstItem)
                 {

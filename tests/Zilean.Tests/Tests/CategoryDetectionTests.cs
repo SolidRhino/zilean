@@ -14,11 +14,10 @@ public class CategoryDetectionTests
     [InlineData(".cbz")]
     public void DetectCategory_BookExtension_ReturnsBook(string extension)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: extension,
-            rawTitle: "Some.Random.Title",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: extension,
+        rawTitle: "Some.Random.Title",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("book");
     }
@@ -28,11 +27,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_PdfWithoutKeyword_FallsThrough()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".pdf",
-            rawTitle: "Some.Random.Document.2024",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".pdf",
+        rawTitle: "Some.Random.Document.2024",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("movie");
     }
@@ -43,11 +41,10 @@ public class CategoryDetectionTests
     [InlineData("Some.Ebook.Collection")]
     public void DetectCategory_PdfWithBookKeyword_ReturnsBook(string rawTitle)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".pdf",
-            rawTitle: rawTitle,
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".pdf",
+        rawTitle: rawTitle,
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("book");
     }
@@ -61,11 +58,10 @@ public class CategoryDetectionTests
     [InlineData("Great.Ebook.Collection.2024")]
     public void DetectCategory_BookKeywordInTitle_NoExtension_ReturnsBook(string rawTitle)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: null,
-            rawTitle: rawTitle,
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: null,
+        rawTitle: rawTitle,
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("book");
     }
@@ -77,11 +73,10 @@ public class CategoryDetectionTests
     [InlineData("Honda.CBR600.Racing.Documentary")]
     public void DetectCategory_SubstringTrap_DoesNotClassifyAsBook(string rawTitle)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: null,
-            rawTitle: rawTitle,
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: null,
+        rawTitle: rawTitle,
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("movie");
     }
@@ -91,11 +86,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_M4bExtension_ReturnsAudiobook()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".m4b",
-            rawTitle: "Some.Random.Title",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".m4b",
+        rawTitle: "Some.Random.Title",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("audiobook");
     }
@@ -107,11 +101,10 @@ public class CategoryDetectionTests
     [InlineData("The.Hobbit.Narrated.By.Andy.Serkis")]
     public void DetectCategory_Mp3WithAudiobookKeyword_ReturnsAudiobook(string rawTitle)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".mp3",
-            rawTitle: rawTitle,
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".mp3",
+        rawTitle: rawTitle,
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("audiobook");
     }
@@ -119,11 +112,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_Mp3WithoutKeyword_FallsThrough()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".mp3",
-            rawTitle: "Some.Music.Album.2024",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".mp3",
+        rawTitle: "Some.Music.Album.2024",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("movie");
     }
@@ -137,11 +129,10 @@ public class CategoryDetectionTests
     [InlineData("Project.Hail.Mary.Abridged")]
     public void DetectCategory_AudiobookKeywordInTitle_NoExtension_ReturnsAudiobook(string rawTitle)
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: null,
-            rawTitle: rawTitle,
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: null,
+        rawTitle: rawTitle,
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("audiobook");
     }
@@ -151,11 +142,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_AdultWithBookExtension_ReturnsXxx()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".epub",
-            rawTitle: "Some.Adult.Content",
-            isAdult: true,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".epub",
+        rawTitle: "Some.Adult.Content",
+        isAdult: true,
+        mediaType: "movie");
 
         result.Should().Be("xxx");
     }
@@ -165,11 +155,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_AudiobookKeywordWithBookExtension_ReturnsAudiobook()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: ".mp3",
-            rawTitle: "Mistborn.Audiobook.EPUB.MP3",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: ".mp3",
+        rawTitle: "Mistborn.Audiobook.EPUB.MP3",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("audiobook");
     }
@@ -179,11 +168,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_NoMatch_ReturnsMovieForMovie()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: null,
-            rawTitle: "The.Matrix.1999.2160p",
-            isAdult: false,
-            mediaType: "movie");
+        var result = CategoryClassifier.DetectCategory(extension: null,
+        rawTitle: "The.Matrix.1999.2160p",
+        isAdult: false,
+        mediaType: "movie");
 
         result.Should().Be("movie");
     }
@@ -191,11 +179,10 @@ public class CategoryDetectionTests
     [Fact]
     public void DetectCategory_NoMatch_ReturnsTvSeriesForTv()
     {
-        var result = ParseTorrentNameService.DetectCategory(
-            extension: null,
-            rawTitle: "Breaking.Bad.S05E16",
-            isAdult: false,
-            mediaType: "tvSeries");
+        var result = CategoryClassifier.DetectCategory(extension: null,
+        rawTitle: "Breaking.Bad.S05E16",
+        isAdult: false,
+        mediaType: "tvSeries");
 
         result.Should().Be("tvSeries");
     }

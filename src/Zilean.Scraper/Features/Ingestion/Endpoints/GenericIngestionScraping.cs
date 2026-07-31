@@ -3,7 +3,7 @@ namespace Zilean.Scraper.Features.Ingestion.Endpoints;
 public class GenericIngestionScraping(
     ZileanConfiguration configuration,
     ITorrentInfoService torrentInfoService,
-    ParseTorrentNameService parseTorrentNameService,
+    TorrentParser parseTorrentNameService,
     ILoggerFactory loggerFactory,
     IHttpClientFactory clientFactory,
     ILogger<GenericIngestionScraping> logger,

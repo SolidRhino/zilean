@@ -24,7 +24,7 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Set dummy Python env vars to prevent Environment.Exit in ParseTorrentNameService
+        // Set dummy Python env vars to prevent Environment.Exit in PythonRuntimeService
         SetEnvVar("ZILEAN_PYTHON_PYLIB", "/dummy/libpython3.so");
         SetEnvVar("ZILEAN_PYTHON_VENV", "/dummy/venv");
 

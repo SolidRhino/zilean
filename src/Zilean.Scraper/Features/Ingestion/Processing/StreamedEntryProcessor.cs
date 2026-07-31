@@ -2,7 +2,7 @@
 
 public class StreamedEntryProcessor(
     ITorrentInfoService torrentInfoService,
-    ParseTorrentNameService parseTorrentNameService,
+    TorrentParser parseTorrentNameService,
     ILoggerFactory loggerFactory,
     IHttpClientFactory clientFactory,
     ZileanConfiguration configuration) : GenericProcessor<StreamedEntry>(loggerFactory, torrentInfoService, parseTorrentNameService, configuration)

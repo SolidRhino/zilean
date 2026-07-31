@@ -1,15 +1,9 @@
 namespace Zilean.Shared.Features.Python;
 
-public class ParseTorrentNameService
+public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> logger, ZileanConfiguration configuration)
 {
-    private readonly Task _initAsync;
-    // ReSharper disable once NotAccessedField.Local
-    private IntPtr _mainThreadState;
-    private bool _isInitialized;
-    private dynamic? _sys;
-    private readonly ILogger<ParseTorrentNameService> _logger;
-    private readonly ZileanConfiguration _configuration;
-    public bool IsAvailable => _initAsync.IsCompletedSuccessfully;
+    private readonly ILogger<TorrentParser> _logger = logger;
+    private readonly ZileanConfiguration _configuration = configuration;
 
     private const string ParserScript =
         """
@@ -96,28 +90,9 @@ public class ParseTorrentNameService
             return asyncio.run(process_batches(info_batches, max_concurrent_tasks))
         """;
 
-    public ParseTorrentNameService(ILogger<ParseTorrentNameService> logger, ZileanConfiguration configuration)
-    {
-        _logger = logger;
-        _configuration = configuration;
-        _initAsync = InitializePythonEngine();
-    }
-
-    public async Task StopPythonEngine()
-    {
-        if (!IsAvailable) return;
-
-        await _initAsync;
-        _sys.Dispose();
-
-        PythonEngine.Shutdown();
-
-        _isInitialized = false;
-    }
-
     public async Task<List<TorrentInfo>> ParseAndPopulateAsync(List<ExtractedDmmEntry> torrents, int batchSize = 5000)
     {
-        await _initAsync;
+        await runtime.Initialization;
 
         PyModule? scope = null;
         dynamic runProcessBatches = null;
@@ -198,7 +173,7 @@ public class ParseTorrentNameService
 
     public async Task<TorrentInfo> ParseAndPopulateTorrentInfoAsync(TorrentInfo torrent)
     {
-        await _initAsync;
+        await runtime.Initialization;
 
         PyModule? scope = null;
         dynamic runSingle = null;
@@ -263,58 +238,6 @@ public class ParseTorrentNameService
         }
     }
 
-    private static readonly string[] _bookExtensions = [".epub", ".mobi", ".azw3", ".cbr", ".cbz"];
-    private static readonly string[] _bookKeywords = ["ebook", "epub", "azw3", "cbz"];
-    private static readonly string[] _pdfBookKeywords = ["ebook", "epub", "textbook", "manga"];
-    private static readonly string[] _audiobookKeywords = ["audiobook", "narrated by", "unabridged", "abridged"];
-
-    public static string DetectCategory(string? extension, string? rawTitle, bool isAdult, string mediaType)
-    {
-        if (isAdult)
-        {
-            return "xxx";
-        }
-
-        var title = (rawTitle ?? string.Empty).Replace('.', ' ');
-        var ext = extension?.ToLowerInvariant() ?? string.Empty;
-
-        // Audiobook detection (before book - more specific)
-        if (ext == ".m4b")
-        {
-            return "audiobook";
-        }
-
-        if (_audiobookKeywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase)))
-        {
-            return "audiobook";
-        }
-
-        if (ext == ".mp3")
-        {
-            // mp3 without audiobook keyword falls through to movie/TV
-            return mediaType.Equals("movie", StringComparison.OrdinalIgnoreCase) ? "movie" : "tvSeries";
-        }
-
-        // Book detection
-        if (_bookExtensions.Contains(ext))
-        {
-            return "book";
-        }
-
-        if (ext == ".pdf" && _pdfBookKeywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase)))
-        {
-            return "book";
-        }
-
-        if (string.IsNullOrEmpty(ext) && _bookKeywords.Any(k => title.Contains(k, StringComparison.OrdinalIgnoreCase)))
-        {
-            return "book";
-        }
-
-        // Fallback to movie/TV
-        return mediaType.Equals("movie", StringComparison.OrdinalIgnoreCase) ? "movie" : "tvSeries";
-    }
-
     private ParseTorrentTitleResponse ParseResult(dynamic? result)
     {
         try
@@ -340,7 +263,7 @@ public class ParseTorrentNameService
 
             var torrentInfo = JsonSerializer.Deserialize<TorrentInfo>(json);
 
-            torrentInfo.Category = DetectCategory(torrentInfo.Extension, torrentInfo.RawTitle, torrentInfo.IsAdult, mediaType);
+            torrentInfo.Category = CategoryClassifier.DetectCategory(torrentInfo.Extension, torrentInfo.RawTitle, torrentInfo.IsAdult, mediaType);
 
             result.Dispose();
 
@@ -351,59 +274,5 @@ public class ParseTorrentNameService
             _logger.LogError(ex, "Error occurred while parsing result");
             return new ParseTorrentTitleResponse(false, null);
         }
-    }
-
-    private Task InitializePythonEngine()
-    {
-        if (_isInitialized)
-        {
-            return Task.CompletedTask;
-        }
-
-        try
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var pathToVirtualEnv = Environment.GetEnvironmentVariable("ZILEAN_PYTHON_VENV") ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(pathToVirtualEnv))
-                {
-                    _logger.LogError("`ZILEAN_PYTHON_VENV` env is not set. Python engine will be unavailable.");
-                    return Task.FromException(new InvalidOperationException("ZILEAN_PYTHON_VENV environment variable is not set."));
-                }
-
-                var path = Environment.GetEnvironmentVariable("PATH").TrimEnd(';');
-                path = string.IsNullOrEmpty(path) ? pathToVirtualEnv : path + ";" + pathToVirtualEnv;
-                Environment.SetEnvironmentVariable("PATH", path, EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("PATH", pathToVirtualEnv, EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("PYTHONHOME", pathToVirtualEnv, EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("PYTHONPATH", $@"{pathToVirtualEnv}\Lib\site-packages;{pathToVirtualEnv}\Lib", EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB", $@"{pathToVirtualEnv}\python312.dll", EnvironmentVariableTarget.Process);
-            }
-
-            var pythonDllEnv = Environment.GetEnvironmentVariable("ZILEAN_PYTHON_PYLIB");
-
-            if (string.IsNullOrWhiteSpace(pythonDllEnv))
-            {
-                _logger.LogError("`ZILEAN_PYTHON_PYLIB` env is not set. Python engine will be unavailable.");
-                return Task.FromException(new InvalidOperationException("ZILEAN_PYTHON_PYLIB environment variable is not set."));
-            }
-
-            Runtime.PythonDLL = pythonDllEnv;
-            PythonEngine.Initialize();
-            _mainThreadState = PythonEngine.BeginAllowThreads();
-            using (Py.GIL())
-            {
-                _sys = Py.Import("sys");
-                _sys.path.append(Path.Combine(AppContext.BaseDirectory, "python"));
-            }
-            _isInitialized = true;
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to initialize Python engine: {Message}", e.Message);
-            return Task.FromException(e);
-        }
-
-        return Task.CompletedTask;
     }
 }

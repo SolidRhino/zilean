@@ -1,11 +1,10 @@
 ﻿namespace Zilean.Database.Services;
 
-public class DmmService(ILogger<DmmService> logger, ZileanConfiguration configuration, IServiceProvider serviceProvider) : BaseDapperService(logger, configuration)
+public class DmmService(IDbContextFactory<ZileanDbContext> dbContextFactory)
 {
     public async Task<DmmLastImport?> GetDmmLastImportAsync(CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
         var dmmLastImport = await dbContext.ImportMetadata.AsNoTracking().FirstOrDefaultAsync(x => x.Key == MetadataKeys.DmmLastImport, cancellationToken: cancellationToken);
 
@@ -14,9 +13,7 @@ public class DmmService(ILogger<DmmService> logger, ZileanConfiguration configur
 
     public async Task SetDmmImportAsync(DmmLastImport dmmLastImport)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
-
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var metadata = await dbContext.ImportMetadata.FirstOrDefaultAsync(x => x.Key == MetadataKeys.DmmLastImport);
 
         if (metadata is null)
@@ -37,24 +34,21 @@ public class DmmService(ILogger<DmmService> logger, ZileanConfiguration configur
 
     public async Task AddPagesToIngestedAsync(IEnumerable<ParsedPages> pageNames, CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         await dbContext.ParsedPages.AddRangeAsync(pageNames, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddPageToIngestedAsync(ParsedPages pageNames, CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         await dbContext.ParsedPages.AddAsync(pageNames, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<List<ParsedPages>> GetIngestedPagesAsync(CancellationToken cancellationToken)
     {
-        await using var serviceScope = serviceProvider.CreateAsyncScope();
-        await using var dbContext = serviceScope.ServiceProvider.GetRequiredService<ZileanDbContext>();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
         return await dbContext.ParsedPages.AsNoTracking().ToListAsync(cancellationToken: cancellationToken);
     }

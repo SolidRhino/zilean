@@ -5,7 +5,7 @@ namespace Zilean.Benchmarks.Benchmarks;
 
 public class PythonParsing
 {
-    private ParseTorrentNameService _service = null!;
+    private TorrentParser _service = null!;
     private List<ExtractedDmmEntry>? _oneK;
     private List<ExtractedDmmEntry>? _fiveK;
     private List<ExtractedDmmEntry>? _tenK;
@@ -17,8 +17,9 @@ public class PythonParsing
         var pythonLib = "/opt/homebrew/opt/python@3.12/Frameworks/Python.framework/Versions/3.12/lib/libpython3.12.dylib";
         Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB", pythonLib);
         Environment.SetEnvironmentVariable("PYTHONNET_PYDLL", pythonLib);
-        var logger = Substitute.For<ILogger<ParseTorrentNameService>>();
-        _service = new ParseTorrentNameService(logger, new ZileanConfiguration());
+        var logger = Substitute.For<ILogger<PythonRuntimeService>>();
+        var runtime = new PythonRuntimeService(logger, new ZileanConfiguration());
+        _service = new TorrentParser(runtime, Substitute.For<ILogger<TorrentParser>>(), new ZileanConfiguration());
         _oneK = GenerateTorrents(1000);
         _fiveK = GenerateTorrents(5000);
         _tenK = GenerateTorrents(10000);

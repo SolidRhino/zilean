@@ -6,7 +6,7 @@ using Zilean.Shared.Extensions;
 
 namespace Zilean.Database.Services.FuzzyString;
 
-public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingService> logger, ZileanConfiguration configuration) : IImdbMatchingService
+public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbMatchingService
 {
     private MemoryCache? _imdbCache;
     private ConcurrentDictionary<int,List<ImdbFile>>? _imdbTvFiles;
@@ -251,14 +251,14 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
     {
         logger.LogInformation("Loading all IMDB entries...");
 
-        await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
-        await sqlConnection.OpenAsync();
-
-        var imdbFiles = await sqlConnection.QueryAsync<ImdbFile>(
-            """
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+        var imdbFiles = await db.ImdbFiles
+            .FromSqlRaw("""
             SELECT "ImdbId", "Title", "Adult", "Category", "Year" FROM public."ImdbFiles"
             WHERE "Category" IN ('movie', 'tvMovie')
-            """);
+            """)
+            .AsNoTracking()
+            .ToListAsync();
 
         var imdbFilesByYear = imdbFiles
             .GroupBy(imdb => imdb.Year)
@@ -273,14 +273,14 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
     {
         logger.LogInformation("Loading all IMDB entries...");
 
-        await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
-        await sqlConnection.OpenAsync();
-
-        var imdbFiles = await sqlConnection.QueryAsync<ImdbFile>(
-            """
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+        var imdbFiles = await db.ImdbFiles
+            .FromSqlRaw("""
             SELECT "ImdbId", "Title", "Adult", "Category", "Year" FROM public."ImdbFiles"
             WHERE "Category" IN ('tvSeries', 'tvShort', 'tvMiniSeries', 'tvSpecial')
-            """);
+            """)
+            .AsNoTracking()
+            .ToListAsync();
 
         var imdbFilesByYear = imdbFiles
             .GroupBy(imdb => imdb.Year)

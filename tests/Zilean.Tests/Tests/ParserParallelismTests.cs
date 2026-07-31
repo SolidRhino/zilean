@@ -22,8 +22,9 @@ public class ParserParallelismTests
     public async Task Benchmark_Parse5K_QuietVsVerbose()
     {
         var config = new ZileanConfiguration();
-        var logger = Substitute.For<ILogger<ParseTorrentNameService>>();
-        var service = new ParseTorrentNameService(logger, config);
+        var logger = Substitute.For<ILogger<PythonRuntimeService>>();
+        var runtime = new PythonRuntimeService(logger, config);
+        var service = new TorrentParser(runtime, Substitute.For<ILogger<TorrentParser>>(), config);
 
         config.Parsing.VerboseLogging = false;
         var quietMs = await TimeParse(service);
@@ -34,8 +35,7 @@ public class ParserParallelismTests
         _output.WriteLine(
             $"[BENCHMARK] Parsed {BenchmarkBatchSize} torrents — quiet={quietMs / 1000.0:F2}s verbose={verboseMs / 1000.0:F2}s ratio={(double)verboseMs / quietMs:F2}x");
     }
-
-    private static async Task<long> TimeParse(ParseTorrentNameService service)
+    private static async Task<long> TimeParse(TorrentParser service)
     {
         var torrents = GenerateTorrents(BenchmarkBatchSize);
         var sw = Stopwatch.StartNew();
