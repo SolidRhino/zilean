@@ -43,9 +43,13 @@ public static class BlacklistEndpoints
             {
                 BlacklistResult.InvalidHash => Results.BadRequest("InfoHash is required"),
                 BlacklistResult.NotFound => Results.NotFound(),
-                BlacklistResult.Added => Results.NoContent(),
+                BlacklistResult.Removed => Results.NoContent(),
                 _ => Results.BadRequest("An error occurred while removing a blacklisted item")
             };
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -68,6 +72,10 @@ public static class BlacklistEndpoints
                 BlacklistResult.Added => Results.NoContent(),
                 _ => Results.BadRequest("An error occurred while adding a blacklisted item")
             };
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {

@@ -51,10 +51,9 @@ public class PythonRuntimeService
                     return Task.FromException(new InvalidOperationException("ZILEAN_PYTHON_VENV environment variable is not set."));
                 }
 
-                var path = Environment.GetEnvironmentVariable("PATH").TrimEnd(';');
-                path = string.IsNullOrEmpty(path) ? pathToVirtualEnv : path + ";" + pathToVirtualEnv;
+                var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                path = string.IsNullOrEmpty(path) ? pathToVirtualEnv : path.TrimEnd(';') + ";" + pathToVirtualEnv;
                 Environment.SetEnvironmentVariable("PATH", path, EnvironmentVariableTarget.Process);
-                Environment.SetEnvironmentVariable("PATH", pathToVirtualEnv, EnvironmentVariableTarget.Process);
                 Environment.SetEnvironmentVariable("PYTHONHOME", pathToVirtualEnv, EnvironmentVariableTarget.Process);
                 Environment.SetEnvironmentVariable("PYTHONPATH", $@"{pathToVirtualEnv}\Lib\site-packages;{pathToVirtualEnv}\Lib", EnvironmentVariableTarget.Process);
                 Environment.SetEnvironmentVariable("ZILEAN_PYTHON_PYLIB", $@"{pathToVirtualEnv}\python312.dll", EnvironmentVariableTarget.Process);

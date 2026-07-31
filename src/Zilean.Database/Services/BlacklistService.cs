@@ -64,6 +64,6 @@ public class BlacklistService(IDbContextFactory<ZileanDbContext> dbContextFactor
 
         logger.LogInformation("Removed blacklisted item {InfoHash}", infoHash);
 
-        return BlacklistResult.Added;
+        return BlacklistResult.Removed;
     }
 }

@@ -4,12 +4,14 @@ public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFa
 {
     public async Task<IReadOnlyList<CachedItem>> CheckCachedAsync(string[] hashes, int maxHashes, CancellationToken ct)
     {
-        if (hashes.Length >= maxHashes)
+        if (hashes.Length > maxHashes)
         {
             throw new ArgumentException($"Too many hashes provided. The limit is {maxHashes}.");
         }
 
-        var hashSet = new HashSet<string>(hashes);
+        var hashSet = new HashSet<string>(
+            hashes.Select(h => h.ToLowerInvariant()),
+            StringComparer.OrdinalIgnoreCase);
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(ct);
 
@@ -51,17 +53,17 @@ public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFa
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(ct);
 
-        await foreach (var item in dbContext.Torrents
-                           .Select(record => new StreamedEntry
-                           {
-                               Name = record.RawTitle,
-                               InfoHash = record.InfoHash,
-                               Size = long.Parse(record.Size),
-                           })
+        await foreach (var record in dbContext.Torrents
+                           .Select(r => new { r.RawTitle, r.InfoHash, r.Size })
                            .AsAsyncEnumerable()
                            .WithCancellation(ct))
         {
-            yield return item;
+            yield return new StreamedEntry
+            {
+                Name = record.RawTitle,
+                InfoHash = record.InfoHash,
+                Size = long.Parse(record.Size),
+            };
         }
     }
 }

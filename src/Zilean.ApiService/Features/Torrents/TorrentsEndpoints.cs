@@ -54,16 +54,14 @@ public static class TorrentsEndpoints
 
             var hashes = request.Hashes.Split(',');
 
-            try
-            {
-                var items = await torrentsQueryService.CheckCachedAsync(hashes, configuration.Torrents.MaxHashesToCheck, context.RequestAborted);
-                return Results.Ok(items);
-            }
-            catch (ArgumentException)
+            if (hashes.Length > configuration.Torrents.MaxHashesToCheck)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return Results.BadRequest(new ErrorResponse(string.Format(TooManyHashesError, configuration.Torrents.MaxHashesToCheck)));
             }
+
+            var items = await torrentsQueryService.CheckCachedAsync(hashes, configuration.Torrents.MaxHashesToCheck, context.RequestAborted);
+            return Results.Ok(items);
         }
         catch (Exception ex)
         {

@@ -26,14 +26,21 @@ public class ParserParallelismTests
         var runtime = new PythonRuntimeService(logger, config);
         var service = new TorrentParser(runtime, Substitute.For<ILogger<TorrentParser>>(), config);
 
-        config.Parsing.VerboseLogging = false;
-        var quietMs = await TimeParse(service);
+        try
+        {
+            config.Parsing.VerboseLogging = false;
+            var quietMs = await TimeParse(service);
 
-        config.Parsing.VerboseLogging = true;
-        var verboseMs = await TimeParse(service);
+            config.Parsing.VerboseLogging = true;
+            var verboseMs = await TimeParse(service);
 
-        _output.WriteLine(
-            $"[BENCHMARK] Parsed {BenchmarkBatchSize} torrents — quiet={quietMs / 1000.0:F2}s verbose={verboseMs / 1000.0:F2}s ratio={(double)verboseMs / quietMs:F2}x");
+            _output.WriteLine(
+                $"[BENCHMARK] Parsed {BenchmarkBatchSize} torrents — quiet={quietMs / 1000.0:F2}s verbose={verboseMs / 1000.0:F2}s ratio={(double)verboseMs / quietMs:F2}x");
+        }
+        finally
+        {
+            await runtime.StopPythonEngine();
+        }
     }
     private static async Task<long> TimeParse(TorrentParser service)
     {

@@ -9,6 +9,7 @@ public interface IBlacklistService
 public enum BlacklistResult
 {
     Added,
+    Removed,
     AlreadyBlacklisted,
     NotFound,
     InvalidHash,

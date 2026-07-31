@@ -4,7 +4,7 @@ public class DmmService(IDbContextFactory<ZileanDbContext> dbContextFactory)
 {
     public async Task<DmmLastImport?> GetDmmLastImportAsync(CancellationToken cancellationToken)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         var dmmLastImport = await dbContext.ImportMetadata.AsNoTracking().FirstOrDefaultAsync(x => x.Key == MetadataKeys.DmmLastImport, cancellationToken: cancellationToken);
 
@@ -34,21 +34,21 @@ public class DmmService(IDbContextFactory<ZileanDbContext> dbContextFactory)
 
     public async Task AddPagesToIngestedAsync(IEnumerable<ParsedPages> pageNames, CancellationToken cancellationToken)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await dbContext.ParsedPages.AddRangeAsync(pageNames, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddPageToIngestedAsync(ParsedPages pageNames, CancellationToken cancellationToken)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await dbContext.ParsedPages.AddAsync(pageNames, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<List<ParsedPages>> GetIngestedPagesAsync(CancellationToken cancellationToken)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         return await dbContext.ParsedPages.AsNoTracking().ToListAsync(cancellationToken: cancellationToken);
     }
