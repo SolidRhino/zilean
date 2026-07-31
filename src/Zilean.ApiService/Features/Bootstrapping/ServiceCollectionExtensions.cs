@@ -19,8 +19,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<StartupService>()
             .AddHostedService<ConfigurationUpdaterService>();
 
-    public static IServiceCollection ConditionallyRegisterDmmJob(this IServiceCollection services,
-        ZileanConfiguration configuration)
+    public static IServiceCollection RegisterSyncJobs(this IServiceCollection services, ZileanConfiguration configuration)
     {
         services.AddTransient<DmmSyncJob>();
         services.AddTransient<GenericSyncJob>();

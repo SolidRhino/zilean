@@ -243,7 +243,7 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
         await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
         await sqlConnection.OpenAsync();
 
-        var imdbFiles = sqlConnection.Query<ImdbFile>(
+        var imdbFiles = sqlConnection.QueryUnbufferedAsync<ImdbFile>(
             """
             SELECT
                 "ImdbId",
@@ -264,7 +264,7 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
                 "Category" IN ('tvSeries', 'tvShort', 'tvMiniSeries', 'tvSpecial', 'movie', 'tvMovie')
             """);
 
-        foreach (var imdb in imdbFiles)
+        await foreach (var imdb in imdbFiles)
         {
             var doc = new Document
             {

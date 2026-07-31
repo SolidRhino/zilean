@@ -11,7 +11,7 @@ builder.Services
     .AddSwaggerSupport()
     .AddSchedulingSupport()
     .AddShellExecutionService()
-    .ConditionallyRegisterDmmJob(zileanConfiguration)
+    .RegisterSyncJobs(zileanConfiguration)
     .AddZileanDataServices(zileanConfiguration)
     .AddApiKeyAuthentication()
     .AddStartupHostedServices()

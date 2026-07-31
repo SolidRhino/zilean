@@ -63,6 +63,7 @@ public static class TorrentsEndpoints
 
             var items = await dbContext
                 .Torrents
+                .AsNoTracking()
                 .Where(record => hashSet.Contains(record.InfoHash))
                 .Select(record => new CachedItem
                 {
@@ -71,9 +72,17 @@ public static class TorrentsEndpoints
                     Item = record
                 })
                 .ToListAsync();
+            var matchedHashes = new HashSet<string>(
+                items.Select(x => x.InfoHash!),
+                StringComparer.OrdinalIgnoreCase);
 
-            foreach (var hash in hashSet.Where(hash => items.All(x => !x.InfoHash.Equals(hash, StringComparison.OrdinalIgnoreCase))))
+            foreach (var hash in hashSet)
             {
+                if (matchedHashes.Contains(hash))
+                {
+                    continue;
+                }
+
                 items.Add(new CachedItem
                 {
                     InfoHash = hash,

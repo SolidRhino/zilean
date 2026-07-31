@@ -254,7 +254,7 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
         await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
         await sqlConnection.OpenAsync();
 
-        var imdbFiles = sqlConnection.Query<ImdbFile>(
+        var imdbFiles = await sqlConnection.QueryAsync<ImdbFile>(
             """
             SELECT "ImdbId", "Title", "Adult", "Category", "Year" FROM public."ImdbFiles"
             WHERE "Category" IN ('movie', 'tvMovie')
@@ -276,7 +276,7 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
         await using var sqlConnection = new NpgsqlConnection(configuration.Database.ConnectionString);
         await sqlConnection.OpenAsync();
 
-        var imdbFiles = sqlConnection.Query<ImdbFile>(
+        var imdbFiles = await sqlConnection.QueryAsync<ImdbFile>(
             """
             SELECT "ImdbId", "Title", "Adult", "Category", "Year" FROM public."ImdbFiles"
             WHERE "Category" IN ('tvSeries', 'tvShort', 'tvMiniSeries', 'tvSpecial')
