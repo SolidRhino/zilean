@@ -62,7 +62,7 @@ public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFa
             {
                 Name = record.RawTitle,
                 InfoHash = record.InfoHash,
-                Size = long.Parse(record.Size),
+                Size = long.TryParse(new string((record.Size ?? string.Empty).TakeWhile(char.IsDigit).ToArray()), out var sz) ? sz : 0,
             };
         }
     }
