@@ -7,10 +7,10 @@ Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified aga
 | Category | Fixed | Open | Total |
 |---|---|---|---|
 | SecurityAudit | 3 | 4 | 7 |
-| ArchitectureSmells | 0 | 7 | 7 |
+| ArchitectureSmells | 1 | 6 | 7 |
 | TestCoverageGaps | 0 | 7 | 7 |
-| PerformanceDb | 0 | 6 | 6 |
-| **Total** | **3** | **24** | **27** |
+| PerformanceDb | 3 | 3 | 6 |
+| **Total** | **7** | **20** | **27** |
 
 ---
 
@@ -36,12 +36,12 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 8. **TestGap GAP 2 — Blacklist endpoint tests** (HIGH): exercise all branches + torrent-delete side effect. Now unblocked by GAP 1. Guards the takedown mechanism.
 9. **TestGap GAP 3 — `Validate()` + fail-fast tests** (HIGH): pure unit tests, no DB needed. Guards against misconfigured cron/batch sizes/score ranges.
 
-### Tier 4 — Medium fixes, safe once Tier 3 lands
+### Tier 4 — Medium fixes (DONE — PR #7)
 
-10. **Perf Finding 4 — Tracked entities + O(n×m) on `CheckCachedTorrents`** (MED): add `AsNoTracking`, project only needed fields, use a `HashSet` for O(1) lookup. Surgical, read-only endpoint.
-11. **Perf Finding 3 — Captive DbContext in `EnsureMigrated`** (MED): inject `IServiceScopeFactory`/`IDbContextFactory`. Small, isolated to scraper startup.
-12. **Perf Finding 2 — Sync-over-async IMDb load** (MED): switch to `QueryAsync`/`QueryUnbufferedAsync`. Touches both Lucene + Fuzzy matchers.
-13. **Arch Finding 7 — Rename `ConditionallyRegisterDmmJob`** (LOW): trivial rename + drop misleading conditional. No behavior change.
+10. **Perf Finding 4 — Tracked entities + O(n×m) on `CheckCachedTorrents`** (MED, FIXED): added `AsNoTracking` + O(1) `HashSet<string>` lookup. Field projection deferred (`Item = record` kept to preserve the `/torrents/checkcached` JSON contract).
+11. **Perf Finding 3 — Captive DbContext in `EnsureMigrated`** (MED, FIXED): injected `IServiceScopeFactory`; resolve `ZileanDbContext` in a scope inside `StartAsync`.
+12. **Perf Finding 2 — Sync-over-async IMDb load** (MED, FIXED): Lucene `QueryUnbufferedAsync` + `await foreach`; Fuzzy buffered `QueryAsync`.
+13. **Arch Finding 7 — Rename `ConditionallyRegisterDmmJob`** (LOW, FIXED): renamed to `RegisterSyncJobs`. No behavior change.
 
 ### Tier 5 — Larger refactors (higher risk, more design)
 
