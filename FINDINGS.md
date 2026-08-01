@@ -1,16 +1,16 @@
 # Findings
 
-Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified against current code on 2026-07-27.
+Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified against current code on 2026-08-01 (post-Tier 6 merge).
 
 **Summary**
 
 | Category | Fixed | Open | Total |
 |---|---|---|---|
-| SecurityAudit | 3 | 4 | 7 |
-| ArchitectureSmells | 1 | 6 | 7 |
-| TestCoverageGaps | 0 | 7 | 7 |
-| PerformanceDb | 3 | 3 | 6 |
-| **Total** | **7** | **20** | **27** |
+| SecurityAudit | 6 | 1 | 7 |
+| ArchitectureSmells | 6 | 1 | 7 |
+| TestCoverageGaps | 7 | 0 | 7 |
+| PerformanceDb | 5 | 1 | 6 |
+| **Total** | **24** | **3** | **27** |
 
 ---
 
@@ -18,23 +18,23 @@ Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified aga
 
 Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel within themselves; each tier's prerequisites are satisfied by earlier tiers.
 
-### Tier 1 — Security hardening (do first, blocks exploitation)
+### Tier 1 — Security hardening (DONE — PR #4)
 
-1. **Security Finding 5 — GITHUB_TOKEN in cleartext git URL** (MED): switch to `GIT_ASKPASS` / credential helper to stop leaking the token in `.git/config`, process args, and logs. Self-contained change in `DmmFileDownloader.cs`.
-2. **Security Finding 3 — Secrets in plaintext `settings.json`** (MED): separate secrets from the exported settings — keep the API key and Postgres password out of the world-readable JSON volume file (redact the password before serialization, store the API key in env/secret store or a restricted-permission secret file that the app loads from there). Don't use `[JsonIgnore]` on `ApiKey` blindly, as that would stop the generated key from persisting across restarts.
-3. **Security Finding 6 — Container runs as root** (MED): add a non-root `USER` + `chown` to the Dockerfile run stage. No code change; build/test only.
-4. **Security Finding 7 — Hardcoded Syncfusion license** (LOW): move to env/config. Quick, unblocks rotation without rebuild.
+1. **Security Finding 5 — GITHUB_TOKEN in cleartext git URL** (MED, FIXED): switched to git credential helper expanding `$GITHUB_TOKEN` from env at auth time; token no longer embedded in URL or `.git/config`.
+2. **Security Finding 3 — Secrets in plaintext `settings.json`** (MED, FIXED): `[JsonIgnore]` on `DatabaseConfiguration.ConnectionString` prevents the Postgres password from being serialized to `settings.json`. `ApiKey` remains persisted (intentional — key must survive restarts; the finding itself notes not to use `[JsonIgnore]` blindly).
+3. **Security Finding 6 — Container runs as root** (MED, FIXED): `Dockerfile` run stage creates `zilean` user/group and switches to `USER zilean`; `/app` chowned.
+4. **Security Finding 7 — Hardcoded Syncfusion license** (LOW, OPEN): config override mechanism added (`Zilean__SyncfusionLicense` env var) but the literal base64 key still remains in source as fallback.
 
-### Tier 2 — Test harness foundation (unblocks all other test gaps)
+### Tier 2 — Test harness foundation (DONE — PR #5)
 
-5. **TestGap GAP 1 — X-API-KEY header middleware tests** (HIGH): add integration tests sending missing/wrong/correct `X-API-KEY` to `/blacklist`, `/torrents`, `/on-demand-scrape`. This is the prerequisite for GAP 2 and GAP 7, which both need authenticated requests.
+5. **TestGap GAP 1 — X-API-KEY header middleware tests** (HIGH, FIXED): `ApiKeyHeaderAuthenticationTests.cs` — 7 tests covering missing/wrong/correct/empty `X-API-KEY` against `/blacklist/add` and `/torrents/checkcached`.
 
-### Tier 3 — High-impact correctness & performance fixes
+### Tier 3 — High-impact correctness & performance fixes (DONE — PR #6)
 
-6. **Perf Finding 1 — N+1 per-page DB writes** (HIGH): batch `AddParsedPage` calls into `AddPagesToIngestedAsync` in `DmmFileEntryProcessor`. Biggest ingestion throughput win; the batch method already exists, just unused.
-7. **Arch Finding 2 — Coravel jobs manually `new`'d** (HIGH): resolve `DmmSyncJob` from the container in `StartupService` and `SearchEndpoints` instead of `new`-ing. Prevents silent DI bypass bugs and unblocks Finding 3's extraction.
-8. **TestGap GAP 2 — Blacklist endpoint tests** (HIGH): exercise all branches + torrent-delete side effect. Now unblocked by GAP 1. Guards the takedown mechanism.
-9. **TestGap GAP 3 — `Validate()` + fail-fast tests** (HIGH): pure unit tests, no DB needed. Guards against misconfigured cron/batch sizes/score ranges.
+6. **Perf Finding 1 — N+1 per-page DB writes** (HIGH, FIXED): `DmmFileEntryProcessor.ProduceEntriesAsync` now buffers `ParsedPages` and calls `AddPagesToIngestedAsync` (batch) instead of per-file `AddPageToIngestedAsync`.
+7. **Arch Finding 2 — Coravel jobs manually `new`'d** (HIGH, FIXED): `StartupService.StartedAsync` and `SearchEndpoints.PerformOnDemandScrape` resolve `DmmSyncJob` from DI scope, not `new`-ing.
+8. **TestGap GAP 2 — Blacklist endpoint tests** (HIGH, FIXED): `BlacklistEndpointsTests.cs` — 9 tests covering empty info_hash/reason (400), already-blacklisted (409), success+torrent-delete (204), not-in-torrents (204), remove empty/not-found/success/re-remove.
+9. **TestGap GAP 3 — `Validate()` + fail-fast tests** (HIGH, FIXED): `ConfigurationValidationTests.cs` — 13 tests covering all `Validate()` rules + `StartupService.StartingAsync` throw path.
 
 ### Tier 4 — Medium fixes (DONE — PR #7)
 
@@ -48,20 +48,20 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 14. **Arch Finding 1 — Service-locator anti-pattern** (HIGH, FIXED): replaced `IServiceProvider` + `CreateAsyncScope` with constructor-injected `IDbContextFactory<ZileanDbContext>` via `AddDbContextFactory`. All data services (`TorrentInfoService`/`ImdbFileService`/`DmmService`/`EnsureMigrated`) use `CreateDbContextAsync()`.
 15. **Arch Finding 4 — Business logic in endpoint classes** (MED, FIXED): extracted `IBlacklistService` (owns add/remove + cascade torrent delete) and `ITorrentsQueryService` (owns `CheckCachedAsync` + `StreamAllAsync`). Endpoints are thin HTTP delegates mapping `BlacklistResult` → status codes.
 16. **Arch Finding 5 — Singleton IMDb matchers bypass data layer** (MED, FIXED): `ImdbLuceneMatchingService`/`ImdbFuzzyStringMatchingService` inject `IDbContextFactory` + use `FromSqlRaw` instead of raw `NpgsqlConnection`.
-17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED, FIXED): Dapper for PG-function reads (`search_torrents_meta`, `search_imdb_meta`), EF via `IDbContextFactory` for entity writes. `DmmService` dropped `BaseDapperService` inheritance.
+17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED, OPEN): `TorrentInfoService` still inherits `BaseDapperService` AND uses `IDbContextFactory` — Dapper reads and EF reads/writes coexist with no documented boundary. `DmmService` dropped `BaseDapperService` (fixed), but the primary target (`TorrentInfoService`) remains dual-abstraction.
 18. **Arch Finding 3 — God class `ParseTorrentNameService`** (MED, FIXED): split into `PythonRuntimeService` (engine lifecycle) + `TorrentParser` (RTN orchestration) + `CategoryClassifier` (static category detection).
 
-### Tier 6 — Remaining test gaps + perf tuning
+### Tier 6 — Remaining test gaps + perf tuning (DONE — PR #10)
 
-19. **TestGap GAP 4 — Generic ingestion pipeline tests** (HIGH): URL/header construction per `EndpointType` + exception loop. Lands cleanly after Arch Finding 3/4 settle the ingestion structure.
-20. **TestGap GAP 5 — Python-unavailable branch tests** (MED): unsets `ZILEAN_PYTHON_PYLIB`, asserts `IsAvailable == false`, hits `/healthchecks/ready`. Unblocked by Arch Finding 3 (`CategoryClassifier` split out — `PythonRuntimeService.IsAvailable` is the target).
-21. **TestGap GAP 6 — Torznab/search error + DB-down tests** (MED): error 900/201 + fault-injection. Needs stable endpoints from Tier 3/5.
-22. **TestGap GAP 7 — `/torrents/checkcached` + `/torrents/all` tests** (LOW): validation bounds + stream. Unblocked by GAP 1 (Tier 2); deferred because it also benefits from Perf Finding 4 landing first.
-23. **Perf Finding 5 — GIL-bound asyncio parsing** (MED): replace with a sync for-loop or multi-interpreter subprocesses. Needs careful benchmarking; do last to avoid churn.
-24. **Perf Finding 6 — Trigram search sorts before LIMIT** (MED): subquery `LIMIT` or partial index. Needs query-level benchmarking against real data; do last.
+19. **TestGap GAP 4 — Generic ingestion pipeline tests** (HIGH, FIXED): `IngestionPipelineTests.cs` — 6 producer-only tests for URL/header construction per `GenericEndpointType` + exception swallowing.
+20. **TestGap GAP 5 — Python-unavailable branch tests** (MED, FIXED): `PythonUnavailableTests.cs` (unit) + `PythonUnavailableHealthCheckTests.cs` (integration) — `IsAvailable==false` on empty env var + `/healthchecks/ready` degraded.
+21. **TestGap GAP 6 — Torznab/search error + DB-down tests** (MED, FIXED): `TorznabErrorTests.cs` (5 integration) + `TorznabQueryValidationTests.cs` (4 unit) — error 900/201 + DB-down graceful degradation.
+22. **TestGap GAP 7 — `/torrents/checkcached` + `/torrents/all` tests** (LOW, FIXED): `TorrentsEndpointsTests.cs` — 6 tests covering hash validation bounds, cached/uncached, mixed, and `/torrents/all` stream (proves `long.Parse` → `TryParse` fix).
+23. **Perf Finding 5 — GIL-bound asyncio parsing** (MED, FIXED): replaced `run_process_batches` (asyncio + Semaphore) with sync `foreach` over `parse_torrent_single`. `ParserConcurrency` retained but no longer called by batch path.
+24. **Perf Finding 6 — Trigram search sorts before LIMIT** (MED, OPEN): investigation-only. EXPLAIN on 100K-row scratch Postgres shows GiST KNN is 29% faster but GiST index is 49% larger than GIN (13MB vs 8.7MB); deferred to follow-up PR. `SearchTorrentsMetaV6.cs` unchanged.
 
 
-## SecurityAudit (3 fixed, 4 open)
+## SecurityAudit (6 fixed, 1 open)
 
 ### FIXED — Finding 1 (HIGH)
 
@@ -87,15 +87,15 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 3 (MED)
+### FIXED — Finding 3 (MED, PR #4)
 
-**Path:** `src/Zilean.ApiService/Features/Bootstrapping/ConfigurationUpdaterService.cs:26-34` + `src/Zilean.Shared/Features/Configuration/DatabaseConfiguration.cs:24` + `src/Zilean.Shared/Features/Configuration/ZileanConfiguration.cs:11`
+**Path:** `src/Zilean.ApiService/Features/Bootstrapping/ConfigurationUpdaterService.cs:26-34` + `src/Zilean.Shared/Features/Configuration/DatabaseConfiguration.cs` + `src/Zilean.Shared/Features/Configuration/ZileanConfiguration.cs:11`
 
 **Description:** Secrets persisted in plaintext to `data/settings.json` on every startup. `ConfigurationUpdaterService` serializes the entire `ZileanConfiguration` object — whose public properties include `ApiKey` (the auth secret) and `Database.ConnectionString` (which embeds the Postgres password built from `POSTGRES_PASSWORD`, with no `[JsonIgnore]`). The file is written with default permissions to `/app/data/settings.json` (a mounted volume). The connection string already lives in the process/env (necessary), but duplicating it plus the API key to a world/default-readable JSON file on a persistent volume broadens the secret's exposure surface (volume snapshots, backups, host-side reads, container-to-container).
 
-**Remediation:** Add `[JsonIgnore]` to `ApiKey` and `Database.ConnectionString` (or redact the password before serialization); write secrets only to protected/locked-down paths.
+**Remediation:** Add `[JsonIgnore]` to `Database.ConnectionString` (redact the password before serialization). `ApiKey` is intentionally persisted to `settings.json` so the generated key survives restarts (the finding itself notes not to use `[JsonIgnore]` blindly); the DB-password exposure (the higher-risk half) is the primary concern.
 
-**Verified:** Still serializes full `configuration` object; `DatabaseConfiguration.cs:24` has no `[JsonIgnore]`.
+**Verified:** `DatabaseConfiguration.cs` now has `[JsonIgnore]` on `ConnectionString` — the Postgres password is no longer serialized to `settings.json`. `ApiKey` remains persisted (intentional — the key must survive restarts; the finding itself notes not to use `[JsonIgnore]` blindly). The DB-password exposure (the higher-risk half) is remediated.
 
 ---
 
@@ -111,27 +111,27 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 5 (MED)
+### FIXED — Finding 5 (MED, PR #4)
 
-**Path:** `src/Zilean.Scraper/Features/Ingestion/Dmm/DmmFileDownloader.cs:67-69`
+**Path:** `src/Zilean.Scraper/Features/Ingestion/Dmm/DmmFileDownloader.cs`
 
 **Description:** `GITHUB_TOKEN` embedded in cleartext git remote URL. `GetRepoUrlWithAuth` builds `https://{token}@github.com/owner/repo.git` and passes it to git clone/pull. The token then sits in `.git/config` of the cloned repo at `data/repo/.git/config` on disk, and any git command that errors may surface the URL (and thus the token) in process args/logs/ps output. A leaked token grants read/write to the token owner's scoped repos.
 
 **Remediation:** Use git's credential helper or the `GIT_ASKPASS`/SSH env mechanisms instead of embedding the token in the URL; or at minimum redact the token from any logged command and run `git -c credential.helper='!f() { echo password=$GITHUB_TOKEN; }; f'` to avoid persisting it in `.git/config`.
 
-**Verified:** `DmmFileDownloader.cs:69` still does `RepoUrl.Replace("https://", $"https://{githubToken}@")`.
+**Verified:** `DmmFileDownloader.cs` now uses an inline git credential helper (`GitCredentialHelper`) that expands `$GITHUB_TOKEN` from the process environment at auth time. No token is embedded in the URL or `.git/config`. `GitPullAsync` also scrubs any token-embedded URL left by older versions via `git remote set-url origin <public URL>`.
 
 ---
 
-### OPEN — Finding 6 (MED)
+### FIXED — Finding 6 (MED, PR #4)
 
-**Path:** `Dockerfile` (run stage, no `USER` directive)
+**Path:** `Dockerfile` (run stage)
 
 **Description:** Container runs as root. The run stage (`FROM mcr.microsoft.com/dotnet/aspnet:9.0.18-alpine3.23`) has no `USER` instruction, so the ENTRYPOINT `./zilean-api` executes as UID 0. A process compromise (e.g. via a parsing bug in the pythonnet/RTN path or a deserialization issue) grants root inside the container, escalating container-escape and host-mutation impact. The app only needs to bind 8181 (already >1024) and write to `/app/data`.
 
 **Remediation:** Add a non-root user in the run stage, e.g. `RUN addgroup -S zilean && adduser -S -G zilean zilean`, then `USER zilean`, and ensure the `/app/data` VOLUME is chowned to that UID (add `RUN mkdir -p /app/data && chown -R zilean:zilean /app` before the `USER` line).
 
-**Verified:** `Dockerfile` run stage (lines 13-40) has no `USER` directive.
+**Verified:** `Dockerfile` run stage now creates `zilean` user/group (`addgroup -S -g 101 zilean && adduser -S -u 100 -G zilean zilean`), chowns `/app`, and switches to `USER zilean`. ENTRYPOINT runs as UID 100, not root.
 
 ---
 
@@ -147,29 +147,29 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-## ArchitectureSmells (1 fixed, 6 open)
+## ArchitectureSmells (6 fixed, 1 open)
 
-### OPEN — Finding 1 (HIGH)
+### FIXED — Finding 1 (HIGH, PR #8)
 
-**Path:** `src/Zilean.Database/Services/TorrentInfoService.cs:3,27-30,8-9,188-189,201-202`
+**Path:** `src/Zilean.Database/Services/TorrentInfoService.cs` + `ImdbFileService.cs` + `DmmService.cs`
 
-**Description:** Service-locator anti-pattern across the data layer. `TorrentInfoService`, `ImdbFileService`, `DmmService` all inject `IServiceProvider` and call `serviceProvider.CreateAsyncScope()` + `GetRequiredService<ZileanDbContext>()` inside every method (e.g. `StoreTorrentInfo:27-30`, `VaccumTorrentsIndexes:8-9`, `GetExistingInfoHashesAsync:188-189`). This hides real dependencies from the constructor, defeats lifetime diagnostics, makes each method a mini composition root, and is duplicated ~20× across the layer. WHY IT MATTERS: lifetime bugs are invisible until production (e.g. a Singleton resolving a Scoped DbContext captures the root scope's context); tests cannot substitute the context per-call; every method re-pays the scope-creation cost.
+**Description:** Service-locator anti-pattern across the data layer. `TorrentInfoService`, `ImdbFileService`, `DmmService` all inject `IServiceProvider` and call `serviceProvider.CreateAsyncScope()` + `GetRequiredService<ZileanDbContext>()` inside every method. This hides real dependencies from the constructor, defeats lifetime diagnostics, makes each method a mini composition root, and is duplicated ~20× across the layer. WHY IT MATTERS: lifetime bugs are invisible until production (e.g. a Singleton resolving a Scoped DbContext captures the root scope's context); tests cannot substitute the context per-call; every method re-pays the scope-creation cost.
 
 **Remediation:** Inject `ZileanDbContext` (or `IDbContextFactory<ZileanDbContext>`) directly via constructor and let the DI scope handle lifetime.
 
-**Verified:** `TorrentInfoService.cs:3` still injects `IServiceProvider`; lines 8-9, 27-30 still `CreateAsyncScope()` + `GetRequiredService<ZileanDbContext>()`.
+**Verified:** `TorrentInfoService.cs` primary ctor now injects `IDbContextFactory<ZileanDbContext>` — no `IServiceProvider`, no `CreateAsyncScope`. All methods use `await using var dbContext = await dbContextFactory.CreateDbContextAsync()`. Same pattern in `ImdbFileService` and `DmmService`.
 
 ---
 
-### OPEN — Finding 2 (HIGH)
+### FIXED — Finding 2 (HIGH, PR #6)
 
-**Path:** `src/Zilean.ApiService/Features/Bootstrapping/StartupService.cs:103-105` + `src/Zilean.ApiService/Features/Search/SearchEndpoints.cs:61`
+**Path:** `src/Zilean.ApiService/Features/Bootstrapping/StartupService.cs` + `src/Zilean.ApiService/Features/Search/SearchEndpoints.cs`
 
-**Description:** DI-registered Coravel jobs are manually `new`'d, bypassing the container. `DmmSyncJob` and `GenericSyncJob` are registered via `services.AddTransient<DmmSyncJob>()` for Coravel scheduling, but `StartupService.StartedAsync` manually constructs `new DmmSyncJob(executionService, loggerFactory.CreateLogger<DmmSyncJob>(), dbContext)` and `SearchEndpoints.PerformOnDemandScrape` does the same. WHY IT MATTERS: any constructor change, decorator, logging interceptor, or cancellation wiring added via DI is silently skipped on these two paths; the manually-built instance also uses a DbContext from an ad-hoc scope whose lifetime is uncorrelated with Coravel's, risking disposal/tracking bugs.
+**Description:** DI-registered Coravel jobs are manually `new`'d, bypassing the container. `DmmSyncJob` and `GenericSyncJob` are registered via `services.AddTransient<DmmSyncJob>()` for Coravel scheduling, but `StartupService.StartedAsync` manually constructs `new DmmSyncJob(...)` and `SearchEndpoints.PerformOnDemandScrape` does the same. WHY IT MATTERS: any constructor change, decorator, logging interceptor, or cancellation wiring added via DI is silently skipped on these two paths; the manually-built instance also uses a DbContext from an ad-hoc scope whose lifetime is uncorrelated with Coravel's, risking disposal/tracking bugs.
 
 **Remediation:** Resolve the jobs from the DI container (e.g. via `IServiceScopeFactory` + scope, or `IHostedService`-style activation) instead of `new`-ing them directly.
 
-**Verified:** `StartupService.cs:103` still `new DmmSyncJob(...)`; `SearchEndpoints.cs:61` still `new DmmSyncJob(...)`.
+**Verified:** `StartupService.cs:99-104` now resolves `DmmSyncJob` via `asyncScope.ServiceProvider.GetRequiredService<DmmSyncJob>()`. `SearchEndpoints.cs:45` takes `DmmSyncJob` as a DI-injected minimal-API parameter. No `new DmmSyncJob` or `new GenericSyncJob` anywhere in `src/`.
 
 ---
 
@@ -185,27 +185,27 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 4 (MED)
+### FIXED — Finding 4 (MED, PR #8)
 
-**Path:** `src/Zilean.ApiService/Features/Blacklist/BlacklistEndpoints.cs:48-86` + `src/Zilean.ApiService/Features/Torrents/TorrentsEndpoints.cs:51-143`
+**Path:** `src/Zilean.ApiService/Features/Blacklist/BlacklistEndpoints.cs` + `src/Zilean.ApiService/Features/Torrents/TorrentsEndpoints.cs`
 
-**Description:** Business logic leaks into static endpoint classes. `BlacklistEndpoints.AddBlacklistItem` inlines the full blacklist workflow directly against `ZileanDbContext`: validation, duplicate check, creating the `BlacklistedItem` entity, deleting the matching torrent, and `SaveChanges`. `TorrentsEndpoints.StreamTorrents`/`CheckCachedTorrents` similarly build queries and do hash-limit enforcement inside the endpoint. WHY IT MATTERS: this logic is untestable without spinning up the web host, cannot be reused (e.g. the dashboard deletes torrents but re-implements its own path via `DashboardDataAdapter.RemoveAsync`), and mixes HTTP concerns with persistence/transaction concerns. The blacklist add+torrent-delete is also not atomic (two `SaveChanges` calls).
+**Description:** Business logic leaks into static endpoint classes. `BlacklistEndpoints.AddBlacklistItem` inlines the full blacklist workflow directly against `ZileanDbContext`: validation, duplicate check, creating the `BlacklistedItem` entity, deleting the matching torrent, and `SaveChanges`. `TorrentsEndpoints.StreamTorrents`/`CheckCachedTorrents` similarly build queries and do hash-limit enforcement inside the endpoint. WHY IT MATTERS: this logic is untestable without spinning up the web host, cannot be reused, and mixes HTTP concerns with persistence/transaction concerns. The blacklist add+torrent-delete is also not atomic (two `SaveChanges` calls).
 
 **Remediation:** Extract a service (e.g. `IBlacklistService`) that owns the workflow + transaction; endpoints delegate to it.
 
-**Verified:** `BlacklistEndpoints.cs` still inlines the workflow against `ZileanDbContext`.
+**Verified:** `BlacklistEndpoints.AddBlacklistItem` and `RemoveBlacklistItem` now delegate to `IBlacklistService` and map `BlacklistResult` → status codes. `TorrentsEndpoints.CheckCachedTorrents` delegates to `ITorrentsQueryService.CheckCachedAsync`; `StreamTorrents` delegates to `StreamAllAsync`. No inline `ZileanDbContext` usage in endpoints. `BlacklistEndpointsTests.cs` (9 tests) covers all branches.
 
 ---
 
-### OPEN — Finding 5 (MED)
+### FIXED — Finding 5 (MED, PR #8)
 
-**Path:** `src/Zilean.Database/Services/Lucene/ImdbLuceneMatchingService.cs:22-58,243-301` + `src/Zilean.Database/Services/FuzzyString/ImdbFuzzyStringMatchingService.cs:11-41,254-276`
+**Path:** `src/Zilean.Database/Services/Lucene/ImdbLuceneMatchingService.cs` + `src/Zilean.Database/Services/FuzzyString/ImdbFuzzyStringMatchingService.cs`
 
-**Description:** Singleton IMDb matchers bypass the data-access layer and own mutable in-memory state. Both `IImdbMatchingService` implementations are registered `Singleton` and each holds large mutable fields (Lucene: `_imdbFilesIndex`, `_reader`, `_searcher`, `_imdbCache`, a `SemaphoreSlim`; Fuzzy: `_imdbTvFiles`, `_imdbMovieFiles`, `_imdbCache`). To populate, both open `new NpgsqlConnection(configuration.Database.ConnectionString)` directly and run raw SQL — duplicating the IMDb load query that `ImdbFileService` already exposes via `SearchForImdbIdAsync`. WHY IT MATTERS: a Singleton with heavy mutable state plus its own DB connection handling duplicates the data-access layer's responsibilities and resists substitution in tests.
+**Description:** Singleton IMDb matchers bypass the data-access layer and own mutable in-memory state. Both `IImdbMatchingService` implementations are registered `Singleton` and each holds large mutable fields (Lucene: `_imdbFilesIndex`, `_reader`, `_searcher`, `_imdbCache`, a `SemaphoreSlim`; Fuzzy: `_imdbTvFiles`, `_imdbMovieFiles`, `_imdbCache`). To populate, both open `new NpgsqlConnection(configuration.Database.ConnectionString)` directly and run raw SQL — duplicating the IMDb load query that `ImdbFileService` already exposes. WHY IT MATTERS: a Singleton with heavy mutable state plus its own DB connection handling duplicates the data-access layer's responsibilities and resists substitution in tests.
 
 **Remediation:** Inject `IImdbFileService` (or a repository) and load via the existing data-access path instead of opening a direct `NpgsqlConnection`.
 
-**Verified:** `ImdbLuceneMatchingService.cs:243` + `ImdbFuzzyStringMatchingService.cs:254,276` still open `new NpgsqlConnection` directly (bypass data-access layer); now use async Dapper calls.
+**Verified:** Both `ImdbLuceneMatchingService` and `ImdbFuzzyStringMatchingService` now inject `IDbContextFactory<ZileanDbContext>` and use `CreateDbContextAsync()` + `FromSqlRaw` for IMDb loads. No `new NpgsqlConnection` in either file. Both remain Singleton with mutable in-memory state, but the data-access layer bypass is resolved.
 
 ---
 
@@ -233,59 +233,59 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-## TestCoverageGaps (0 fixed, 7 open)
+## TestCoverageGaps (7 fixed, 0 open)
 
-### OPEN — GAP 1 (HIGH)
+### FIXED — GAP 1 (HIGH, PR #5)
 
-**Path:** `src/Zilean.ApiService/Features/Authentication/ApiKeyAuthenticationHandler.cs:13-30` + `src/Zilean.ApiService/Features/Bootstrapping/ServiceCollectionExtensions.cs:54-70`
+**Path:** `src/Zilean.ApiService/Features/Authentication/ApiKeyAuthenticationHandler.cs` + `src/Zilean.ApiService/Features/Bootstrapping/ServiceCollectionExtensions.cs:54-70`
 
 **Description:** API-key auth middleware is entirely untested. `ApiKeyAuthenticationHandler.HandleAuthenticateAsync` has three branches: missing `X-API-KEY` header → `Fail('API Key was not provided')`; configured key empty OR mismatch → `Fail('Invalid API Key')`; match → Success ticket. No test references `ApiKey`, `X-API-KEY`, `RequiresAuthorization`, `401`, or `403`. Why it matters: `ApiKeyAuthentication.Policy` gates every mutating/protected endpoint — `/blacklist/add|remove`, `/torrents/all` and `/torrents/checkcached`, and `/dmm/on-demand-scrape`. A regression in the handler (e.g. constant-time compare replaced with `==`, empty-key handling flipped, header name changed) would silently open or close all protected endpoints.
 
-**Note:** `DashboardAuthTests.cs` only covers the dashboard **cookie** login flow (`/auth/login`), NOT the `X-API-KEY` **header** middleware that gates API endpoints. Still open.
+**Note:** `DashboardAuthTests.cs` covers the dashboard cookie login flow; `ApiKeyHeaderAuthenticationTests.cs` covers the `X-API-KEY` header middleware that gates API endpoints.
 
-**Remediation:** Add integration tests that send `X-API-KEY` (missing/wrong/correct) to `/blacklist`, `/torrents`, `/on-demand-scrape` and assert 401/403/200.
+**Remediation:** Add integration tests that send `X-API-KEY` (missing/wrong/correct) to protected endpoints and assert 401/200. Tests cover `/blacklist/add` and `/torrents/checkcached` as representative protected endpoints; `/dmm/on-demand-scrape` shares the same middleware and is not separately tested.
 
-**Verified:** No test sends `X-API-KEY` to protected endpoints. Still open.
+**Verified:** `ApiKeyHeaderAuthenticationTests.cs` — 7 tests covering missing/wrong/correct/empty `X-API-KEY` against `/blacklist/add` and `/torrents/checkcached` (401/200).
 
 ---
 
-### OPEN — GAP 2 (HIGH)
+### FIXED — GAP 2 (HIGH, PR #6)
 
-**Path:** `src/Zilean.ApiService/Features/Blacklist/BlacklistEndpoints.cs:34-104`
+**Path:** `src/Zilean.ApiService/Features/Blacklist/BlacklistEndpoints.cs`
 
 **Description:** Blacklist endpoints (`/blacklist/add` PUT, `/blacklist/remove` DELETE) have zero tests. `AddBlacklistItem` has four branches: empty `info_hash` → 400; empty `reason` → 400; already-blacklisted → 409; success → 204 (and a side effect of removing the matching `Torrents` row). `RemoveBlacklistItem` has: empty `infoHash` → 400; not found → 404; success → 204. None are exercised; `ApiIntegrationTests` covers only anonymous `/torznab`, `/dmm/filtered`, `/healthchecks` paths. Why it matters: blacklisting is the abuse/takedown mechanism — Add also deletes the torrent from the DB, so a bug silently leaves prohibited content searchable or, conversely, wipes entries on a duplicate. The 409 idempotence and the cascade delete are both load-bearing.
 
 **Remediation:** Add integration tests (with auth from GAP 1) covering all branches + the torrent-delete side effect.
 
-**Verified:** No `blacklist`/`Blacklist` references in tests.
+**Verified:** `BlacklistEndpointsTests.cs` — 9 tests covering empty info_hash/reason (400), already-blacklisted (409), success+torrent-delete (204), not-in-torrents (204), remove empty/not-found/success/re-remove.
 
 ---
 
-### OPEN — GAP 3 (HIGH)
+### FIXED — GAP 3 (HIGH, PR #6)
 
-**Path:** `src/Zilean.Shared/Features/Configuration/ZileanConfiguration.cs:34-66` + `src/Zilean.ApiService/Features/Bootstrapping/StartupService.cs:30-44`
+**Path:** `src/Zilean.Shared/Features/Configuration/ZileanConfiguration.cs` + `src/Zilean.ApiService/Features/Bootstrapping/StartupService.cs:30-44`
 
 **Description:** `ZileanConfiguration.Validate()` and the `StartupService` fail-fast path are untested. `Validate()` checks `MaxFilteredResults>0`, `MinimumScoreMatch` in [0,1], `MinimumReDownloadIntervalMinutes>=0`, cron validity for Dmm+Ingestion schedules (5-space-part rule), `Parsing.BatchSize>0`, and non-empty `ConnectionString`; `StartupService.StartingAsync` throws `InvalidOperationException` when errors are non-empty. `ConfigurationTests` only exercises `DatabaseConfiguration` env-var binding and JSON deserialization — no call to `Validate()` or any 'Configuration error' assertion in the test tree. Why it matters: `Validate()` is the only guard against misconfigured cron schedules and negative batch sizes; an invalid `MinimumScoreMatch` or `BatchSize` could break search or ingestion silently.
 
 **Remediation:** Add unit tests for `Validate()` covering each rule (valid + invalid) and the `StartupService` throw path.
 
-**Verified:** No `Validate()` / "Configuration error" references in tests.
+**Verified:** `ConfigurationValidationTests.cs` — 13 tests covering all `Validate()` rules + `StartupService.StartingAsync` throw path.
 
 ---
 
-### OPEN — GAP 4 (HIGH)
+### FIXED — GAP 4 (HIGH, PR #10)
 
-**Path:** `src/Zilean.Scraper/Features/Ingestion/Processing/StreamedEntryProcessor.cs:30-87` + `src/Zilean.Scraper/Features/Ingestion/Endpoints/GenericIngestionScraping.cs:16-66`
+**Path:** `src/Zilean.Scraper/Features/Ingestion/Processing/StreamedEntryProcessor.cs` + `src/Zilean.Scraper/Features/Ingestion/Endpoints/GenericIngestionScraping.cs:16-66`
 
 **Description:** Generic ingestion pipeline (`StreamedEntryProcessor` + `GenericIngestionScraping`) has no tests at all. `ProduceEntriesAsync` builds the URL per `EndpointType` (Zurg/Zilean/Generic), sets `X-Api-Key` or `Authorization` headers, streams JSON via `DeserializeAsyncEnumerable`, and catches exceptions per-URL in the outer loop; the channel consumer in `GenericProcessor.OnProcessTorrentsAsync` dedupes, filters existing hashes, parses via Python, filters blacklisted, and stores. No test references `StreamedEntry`, `GenericIngestion`, `DmmScraping`, `KubernetesServiceDiscovery`, `DmmFileEntry`, or `Vaccum`. Why it matters: this is the primary ingestion path for zurg/zilean instances; the header logic (X-Api-Key only for Zilean endpoints, Authorization only for Generic) and URL-switching are untested.
 
 **Remediation:** Add tests for URL/header construction per `EndpointType` and the exception-per-URL loop.
 
-**Verified:** No `GenericIngestion`/`StreamedEntryProcessor`/`on-demand-scrape` references in tests.
+**Verified:** `IngestionPipelineTests.cs` — 6 producer-only tests for URL/header construction per `GenericEndpointType` + exception swallowing via fake HTTP handler.
 
 ---
 
-### OPEN — GAP 5 (MED)
+### FIXED — GAP 5 (MED, PR #10)
 
 **Path:** `src/Zilean.Shared/Features/Python/PythonRuntimeService.cs` + `src/Zilean.ApiService/Features/HealthChecks/HealthCheckEndpoints.cs:33-58`
 
@@ -293,23 +293,23 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 **Remediation:** Add a test that unsets `ZILEAN_PYTHON_PYLIB`, constructs the service, asserts `IsAvailable == false`, and hits `/healthchecks/ready` expecting degraded.
 
-**Verified:** Still no coverage outside `RequiresPython`-tagged tests.
+**Verified:** `PythonUnavailableTests.cs` (unit) asserts `IsAvailable==false` on empty env var; `PythonUnavailableHealthCheckTests.cs` (integration) asserts `/healthchecks/ready` returns 200 degraded with `pythonAvailable=false`.
 
 ---
 
-### OPEN — GAP 6 (MED)
+### FIXED — GAP 6 (MED, PR #10)
 
-**Path:** `src/Zilean.ApiService/Features/Torznab/TorznabEndpoints.cs:42-66` + `src/Zilean.ApiService/Features/Search/SearchEndpoints.cs:57-95` + `src/Zilean.Database/Services/TorrentInfoService.cs:85-160`
+**Path:** `src/Zilean.ApiService/Features/Torznab/TorznabEndpoints.cs` + `src/Zilean.ApiService/Features/Search/SearchEndpoints.cs:57-95` + `src/Zilean.Database/Services/TorrentInfoService.cs:85-160`
 
 **Description:** Torznab/search error and validation branches, plus the DB-down path, are untested. `TorznabEndpoints.ValidateAndPrepareQuery` returns error 900 for `limit>LimitsMax`, error 201 for unsupported query types, and `NewErrorResponse(900, ex.Message)` on any exception; `SearchEndpoints.PerformSearch`/`PerformFilteredSearch` swallow exceptions and return empty arrays. `TorrentInfoService.SearchForTorrentInfoFiltered` rethrows via `BaseDapperService.ExecuteCommandAsync` on a DB failure, so the DB-down behavior is endpoint-dependent: Torznab returns a 400 XML error, `/dmm/filtered` returns 200 with `[]`. `ApiIntegrationTests` only covers happy/empty-data paths against a healthy Postgres; no fault-injection.
 
 **Remediation:** Add tests for error 900 (limit too high), error 201 (unsupported query type), and the DB-down path (stop Postgres / mock failure).
 
-**Verified:** Still open.
+**Verified:** `TorznabErrorTests.cs` (5 integration) — error 900 (limit/cat/DB-down) + `/dmm/*` DB-down→200`[]`. `TorznabQueryValidationTests.cs` (4 unit) — capability-off throws/returns-false (error 201/900).
 
 ---
 
-### OPEN — GAP 7 (LOW, supplementary)
+### FIXED — GAP 7 (LOW, supplementary)
 
 **Path:** `src/Zilean.ApiService/Features/Torrents/TorrentsEndpoints.cs:46-140`
 
@@ -317,21 +317,21 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 **Remediation:** After GAP 1, add integration tests with auth: `GET /torrents/checkcached?hashes=` (400), over-limit (400), valid (200 with cached/uncached), and `GET /torrents/all` stream.
 
-**Verified:** Still open (blocked on GAP 1).
+**Verified:** `TorrentsEndpointsTests.cs` — 6 tests covering hash validation bounds, cached/uncached, mixed, and `/torrents/all` stream (proves `long.Parse` → `TryParse` fix).
 
 ---
 
-## PerformanceDb (3 fixed, 3 open)
+## PerformanceDb (5 fixed, 1 open)
 
-### OPEN — Finding 1 (HIGH)
+### FIXED — Finding 1 (HIGH, PR #6)
 
-**Path:** `src/Zilean.Scraper/Features/Ingestion/Processing/DmmFileEntryProcessor.cs:101,119,131` + `src/Zilean.Database/Services/DmmService.cs:46-52`
+**Path:** `src/Zilean.Scraper/Features/Ingestion/Processing/DmmFileEntryProcessor.cs` + `src/Zilean.Database/Services/DmmService.cs:46-52`
 
 **Description:** N+1 per-page DB writes. `DmmFileEntryProcessor.ProcessPageAsync` calls `AddParsedPage` (→ `dmmService.AddPageToIngestedAsync`) once per file, on three code paths (no-match, empty, success, error). Each call spins its own service scope + DbContext and runs `SaveChangesAsync` individually. `DmmService` already exposes `AddPagesToIngestedAsync` (batch, line 38) but it is never called. Impact: a 10K-file DMM sync performs 10K separate INSERT round-trips.
 
 **Remediation:** Collect `ParsedPages` in the `ProduceEntriesAsync` loop and call `AddPagesToIngestedAsync` once per batch (or once at end), or buffer pages and flush in chunks.
 
-**Verified:** `DmmFileEntryProcessor.cs:101,119,131` still calls `AddParsedPage` per file; `AddPagesToIngestedAsync` (batch) exists at `DmmService.cs:38` but is never called.
+**Verified:** `DmmFileEntryProcessor.ProduceEntriesAsync` now buffers `ParsedPages` and calls `AddPagesToIngestedAsync` (batch) when buffer >= `BatchSize` and at loop end. Zero per-file `AddPageToIngestedAsync` calls remain.
 
 ---
 
@@ -371,24 +371,24 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 5 (MED)
+### FIXED — Finding 5 (MED, PR #10)
 
-**Path:** `src/Zilean.Shared/Features/Python/TorrentParser.cs:143-151` + `src/Zilean.Shared/Features/Configuration/ParserConcurrency.cs:7-8`
+**Path:** `src/Zilean.Shared/Features/Python/TorrentParser.cs` + `src/Zilean.Shared/Features/Configuration/ParserConcurrency.cs:7-8`
 
 **Description:** GIL-bound parsing with ineffective asyncio concurrency. The entire batch run executes inside a single `using (Py.GIL())` block (line 147); `run_process_batches` launches asyncio tasks gated by a `Semaphore(maxConcurrentTasks)`. RTN's `parse()` is CPU-bound pure Python, so the GIL serializes it regardless of the semaphore — the asyncio concurrency adds task/scheduling overhead without throughput gain. `ParserConcurrency` caps at `min(ProcessorCount, 8)`. Impact: on >8-core hosts the cap leaves cores idle; the asyncio overhead (task creation, semaphore, context switches) is pure cost for CPU-bound work.
 
 **Remediation:** For CPU-bound parsing, a plain synchronous for-loop calling `parse_torrent_single` is as fast with less overhead; if real parallelism is needed, run multiple Python interpreters in subprocesses.
 
-**Verified:** Still open.
+**Verified:** `ParseAndPopulateAsync` now uses a sync `foreach` over `parse_torrent_single` — no `run_process_batches`/asyncio. Each `PyObject` result disposed immediately. `ParserConcurrency.ResolveMaxConcurrentTasks` retained but no longer called by batch path.
 
 ---
 
 ### OPEN — Finding 6 (MED)
 
-**Path:** `src/Zilean.Database/Functions/SearchTorrentsMetaV6.cs:88-95`
+**Path:** `src/Zilean.Database/Functions/SearchTorrentsMetaV6.cs`
 
 **Description:** Trigram search sorts all threshold matches before LIMIT. The V6 function filters with `t."CleanedParsedTitle" % query` (uses the `idx_cleaned_parsed_title_trgm` GIN index for the `%` predicate), then computes `similarity(...)` and `ORDER BY "Score" DESC` over ALL surviving rows, and only then applies `LIMIT limit_param`. The `ORDER BY` on a computed expression cannot use the index, so PostgreSQL materializes and fully sorts every row above the (possibly lowered) `effective_threshold` before discarding all but the top-N. With a low `effective_threshold` (0.85×0.3 ≈ 0.255 for short queries with filters) and a large Torrents table, the intermediate sort set can be large. Impact: high CPU/sort-memory cost and slow p95 for broad filtered queries.
 
 **Remediation:** (a) Ensure the query uses a restrictive enough threshold, (b) consider a partial index or materialized view for common query patterns, or (c) use `LIMIT` in a subquery before the final sort.
 
-**Verified:** `SearchTorrentsMetaV6.cs` unchanged.
+**Verified:** `SearchTorrentsMetaV6.cs` unchanged. Investigation (Tier 6) on 100K-row scratch Postgres: GiST KNN with `%` threshold guard is 29% faster (30ms vs 42.5ms) but GiST index is 49% larger (13MB vs 8.7MB). Deferred to follow-up PR.
