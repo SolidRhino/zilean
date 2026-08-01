@@ -1,8 +1,10 @@
 using Zilean.Shared.Features.Configuration;
 using Zilean.Shared.Features.Python;
+using Zilean.Tests.Collections;
 
 namespace Zilean.Tests.Tests;
 
+[Collection(nameof(SerializedEnvVarCollection))]
 public class ParserParallelismTests
 {
     private const int BenchmarkBatchSize = 5000;
