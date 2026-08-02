@@ -29,7 +29,7 @@ Two runnable hosts sharing `Zilean.Database` + `Zilean.Shared`:
                           ▼
             ┌──────────────────────────────┐
             │  Zilean.Database (EF Core)   │
-            │  ZileanDbContext + Dapper    │
+            │  ZileanDbContext + EF Core   │
             │  PostgreSQL 16 (pg_trgm)     │
             └──────────────────────────────┘
 ```
@@ -49,7 +49,7 @@ Two runnable hosts sharing `Zilean.Database` + `Zilean.Shared`:
 | `src/Zilean.ApiService/` | ASP.NET Core web host: Torznab API, `/dmm` search, health checks, Blazor dashboard. `Features/` holds endpoint groups (`Dmm`, `Imdb`, `Torznab`, `Torrents`, `Blacklist`, `HealthChecks`). |
 | `src/Zilean.Scraper/` | Spectre.Console CLI host. `Features/` holds `Dmm`/`GenericIngestion`/`Imdb` scraping and `Commands/` (dmm-sync, generic-sync, resync-imdb). |
 | `src/Zilean.Shared/` | Shared DTOs, configuration, Torznab models, decompression, Python parsing services (`PythonRuntimeService`, `TorrentParser`, `CategoryClassifier`). `Features/{Configuration,Dmm,Imdb,Scraping,Python,Torrents}`. |
-| `src/Zilean.Database/` | EF Core `ZileanDbContext` (via `AddDbContextFactory`), entities (`Dtos/`), `ModelConfiguration/`, `Migrations/`, `Functions/` (raw SQL), `Indexes/`, `Bootstrapping/`, `Services/` (Dapper-backed reads + EF writes via `IDbContextFactory`, plus `IBlacklistService`/`ITorrentsQueryService`). |
+| `src/Zilean.Database/` | EF Core `ZileanDbContext` (via `AddDbContextFactory`), entities (`Dtos/`), `ModelConfiguration/`, `Migrations/`, `Functions/` (raw SQL), `Indexes/`, `Bootstrapping/`, `Services/` (EF Core reads/writes via `IDbContextFactory` + `SqlQueryRaw`/`FromSqlRaw`, plus `IBlacklistService`/`ITorrentsQueryService`). |
 | `src/Zilean.Benchmarks/` | BenchmarkDotNet project (`PythonParsing.cs`). References `Zilean.Scraper`. |
 | `tests/Zilean.Tests/` | xUnit suite. `Fixtures/`, `Collections/`, `Tests/`. |
 | `eng/` | Scripts, k6 load tests, dev compose, HTTP files. |
@@ -126,7 +126,7 @@ k6 run eng/k6/stress_test.js         # 100 VUs / 1m, p(95)<2000ms, err<5%
 
 **Dependency injection:** services registered in `Program.cs` via `AddZileanDataServices` / `AddScrapers` / `AddDashboardSupport` / `AddSchedulingSupport`. EF Core `DbContext` registered via `AddDbContextFactory<ZileanDbContext>` (registers both `IDbContextFactory<ZileanDbContext>` singleton and scoped `ZileanDbContext`). Services that need short-lived contexts outside request scope (singletons like `IImdbMatchingService`, scraper services) inject `IDbContextFactory<ZileanDbContext>` and call `CreateDbContextAsync()`. `IImdbMatchingService` is a singleton (Lucene/FuzzySharp) and injects `IDbContextFactory` directly. Endpoints resolve services via method-injection parameters rather than `HttpContext.RequestServices`. No service uses `IServiceProvider` for DbContext resolution.
 
-**Database access:** dual path — EF Core (via `IDbContextFactory.CreateDbContextAsync()`) for entity CRUD/streaming and `EFCore.BulkExtensions` `BulkInsertOrUpdateAsync` for ingestion; Dapper (`BaseDapperService.ExecuteCommandAsync` over `NpgsqlConnection`) for calls to PostgreSQL functions (`search_torrents_meta`, `search_imdb_meta`). Singleton IMDb matchers (`ImdbLuceneMatchingService`, `ImdbFuzzyStringMatchingService`) use `IDbContextFactory` + `FromSqlRaw` for bulk loads (preserving server-side normalization SQL). Raw SQL functions are `internal const string` in `src/Zilean.Database/Functions/*` applied via `migrationBuilder.Sql(...)`. Migrations **auto-apply on startup** — no manual `dotnet ef database update` at runtime.
+**Database access:** EF Core only (via `IDbContextFactory.CreateDbContextAsync()`) for entity CRUD/streaming, `EFCore.BulkExtensions` `BulkInsertOrUpdateAsync` for ingestion, and `Database.SqlQueryRaw<T>` for PostgreSQL function calls (`search_torrents_meta`, `search_imdb_meta`); `FromSqlRaw` for entity-shaped queries (`SearchForTorrentInfoByOnlyTitle`). A flat `TorrentInfoQueryDto` maps `search_torrents_meta` results without the `Imdb` navigation property that `SqlQueryRaw` rejects. Singleton IMDb matchers (`ImdbLuceneMatchingService`, `ImdbFuzzyStringMatchingService`) use `IDbContextFactory` + `FromSqlRaw` for bulk loads (preserving server-side normalization SQL). Raw SQL functions are `internal const string` in `src/Zilean.Database/Functions/*` applied via `migrationBuilder.Sql(...)`. Migrations **auto-apply on startup** — no manual `dotnet ef database update` at runtime.
 
 **Error handling / resilience:** DB connection retried 5× with 5s delays on startup. `PreventOverlapping("SyncJobs")` guards concurrent scraping. Graceful degradation when Python runtime unavailable (health check optional). Empty/default DB password triggers a startup warning. Ingestion ends with `VACUUM (VERBOSE, ANALYZE)`.
 

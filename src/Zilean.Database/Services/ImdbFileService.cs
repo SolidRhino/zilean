@@ -1,6 +1,6 @@
 namespace Zilean.Database.Services;
 
-public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : BaseDapperService(logger, configuration), IImdbFileService
+public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbFileService
 {
     private ConcurrentBag<ImdbFile> ImdbFiles { get; } = [];
     public void AddImdbFile(ImdbFile imdbFile) => ImdbFiles.Add(imdbFile);
@@ -46,30 +46,32 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, ZileanConfiguratio
         await dbContext.Database.ExecuteSqlRawAsync("VACUUM (VERBOSE, ANALYZE) \"ImdbFiles\"", cancellationToken: cancellationToken);
     }
 
-    public async Task<ImdbSearchResult[]> SearchForImdbIdAsync(string query, int? year = null, string? category = null) =>
-        await ExecuteCommandAsync(async connection =>
+    public async Task<ImdbSearchResult[]> SearchForImdbIdAsync(string query, int? year = null, string? category = null)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+        const string sql =
+            """
+            SELECT
+                imdb_id as "ImdbId",
+                title as "Title",
+                year as "Year",
+                score as "Score",
+                category as "Category"
+            FROM search_imdb_meta(@query, @category, @year, 10)
+            """;
+
+        var parameters = new object[]
         {
-            const string sql =
-                """
-                SELECT
-                    imdb_id as "ImdbId",
-                    title as "Title",
-                    year as "Year",
-                    score as "Score",
-                    category as "Category"
-                FROM search_imdb_meta(@query, @category, @year, 10)
-                """;
+            new NpgsqlParameter("@query", (object?)query ?? DBNull.Value),
+            new NpgsqlParameter("@category", (object?)category ?? DBNull.Value),
+            new NpgsqlParameter("@year", (object?)year ?? DBNull.Value),
+        };
 
-            var parameters = new DynamicParameters();
+        var results = await dbContext.Database.SqlQueryRaw<ImdbSearchResult>(sql, parameters).ToArrayAsync();
 
-            parameters.Add("@query", query);
-            parameters.Add("@category", category);
-            parameters.Add("@year", year);
-
-            var result = await connection.QueryAsync<ImdbSearchResult>(sql, parameters);
-
-            return result.ToArray();
-        }, "Error finding imdb metadata.");
+        return results;
+    }
 
     public async Task<ImdbLastImport?> GetImdbLastImportAsync(CancellationToken cancellationToken)
     {
