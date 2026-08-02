@@ -287,8 +287,8 @@ namespace Zilean.Database.Migrations
                     b.HasIndex("CleanedParsedTitle")
                         .HasDatabaseName("idx_cleaned_parsed_title_trgm");
 
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CleanedParsedTitle"), "GIN");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("CleanedParsedTitle"), new[] { "gin_trgm_ops" });
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("CleanedParsedTitle"), "GIST");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("CleanedParsedTitle"), new[] { "gist_trgm_ops" });
 
                     b.HasIndex("Episodes")
                         .HasDatabaseName("idx_episodes_gin");

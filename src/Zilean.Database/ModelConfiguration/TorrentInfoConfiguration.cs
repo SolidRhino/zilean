@@ -2,7 +2,7 @@ namespace Zilean.Database.ModelConfiguration;
 
 public class TorrentInfoConfiguration : IEntityTypeConfiguration<TorrentInfo>
 {
-    private static readonly string[] _trigramOps = ["gin_trgm_ops"];
+    private static readonly string[] _trigramOps = ["gist_trgm_ops"];
 
     public void Configure(EntityTypeBuilder<TorrentInfo> builder)
     {
@@ -247,7 +247,7 @@ public class TorrentInfoConfiguration : IEntityTypeConfiguration<TorrentInfo>
 
         builder.HasIndex(t => t.CleanedParsedTitle)
             .HasDatabaseName("idx_cleaned_parsed_title_trgm")
-            .HasMethod("GIN")
+            .HasMethod("GIST")
             .HasAnnotation("Npgsql:IndexOperators", _trigramOps);
 
         builder.HasIndex(t => t.Seasons)

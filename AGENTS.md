@@ -40,7 +40,7 @@ Two runnable hosts sharing `Zilean.Database` + `Zilean.Shared`:
 
 **ApiService also ingests indirectly:** Coravel `Schedule<DmmSyncJob>()` / `<GenericSyncJob>()` on cron (`Dmm.ScrapeSchedule`, `Ingestion.ScrapeSchedule`) with `PreventOverlapping("SyncJobs")`; jobs shell-execute the `scraper` binary via `IShellExecutionService` (CliWrap). `StartupService` (`IHostedLifecycleService`) validates config, waits for DB with retry, applies migrations, triggers first-run `DmmSyncJob` if no `ParsedPages` exist. `ConfigurationUpdaterService` persists `settings.json` and regenerates the API key when `ZILEAN__NEW__API__KEY=1`.
 
-**Data model** (`ZileanDbContext`): `Torrents` (`TorrentInfo`), `ImdbFiles` (`ImdbFile`), `ParsedPages`, `ImportMetadata` (JSON doc storing `DmmLastImport`/`ImdbLastImport`), `BlacklistedItems`. `TorrentInfoConfiguration` maps ~50 columns with snake_case `Relational:JsonPropertyName`, GIN trigram index on `CleanedParsedTitle` (`gin_trgm_ops`), GIN indexes on Seasons/Episodes/Languages, btree on Year/ImdbId/IsAdult/Trash/IngestedAt. SQL functions live as `internal const string` in `src/Zilean.Database/Functions/*` and are applied via migrations (`migrationBuilder.Sql(SearchTorrentsMetaV6.Create)`). Current search fn `search_torrents_meta` (V6) with adaptive similarity threshold for filtered/book/audiobook queries; `search_imdb_meta` (V3) for IMDb.
+**Data model** (`ZileanDbContext`): `Torrents` (`TorrentInfo`), `ImdbFiles` (`ImdbFile`), `ParsedPages`, `ImportMetadata` (JSON doc storing `DmmLastImport`/`ImdbLastImport`), `BlacklistedItems`. `TorrentInfoConfiguration` maps ~50 columns with snake_case `Relational:JsonPropertyName`, GiST trigram index on `CleanedParsedTitle` (`gist_trgm_ops`, KNN distance support), GIN indexes on Seasons/Episodes/Languages, btree on Year/ImdbId/IsAdult/Trash/IngestedAt. SQL functions live as `internal const string` in `src/Zilean.Database/Functions/*` and are applied via migrations (`migrationBuilder.Sql(SearchTorrentsMetaV7.Create)`). Current search fn `search_torrents_meta` (V7) with two-stage GiST KNN ordering (inner `ORDER BY "CleanedParsedTitle" <-> query FETCH FIRST N ROWS WITH TIES` + outer re-sort by distance + `IngestedAt DESC LIMIT N`; branches on `query IS NULL` for recency-only sort) + adaptive similarity threshold for filtered/book/audiobook queries; `search_imdb_meta` (V3) for IMDb.
 
 ## Key Directories
 
@@ -147,8 +147,8 @@ k6 run eng/k6/stress_test.js         # 100 VUs / 1m, p(95)<2000ms, err<5%
 | `src/Zilean.Scraper/Features/Commands/` | `dmm-sync`, `generic-sync`, `resync-imdb` commands. |
 | `src/Zilean.Database/ZileanDbContext.cs` | EF Core context — DbSets for Torrents/ImdbFiles/ParsedPages/ImportMetadata/BlacklistedItems. |
 | `src/Zilean.Database/ZileanDbContextDesignTimeFactory.cs` | Design-time factory for `dotnet ef migrations`. |
-| `src/Zilean.Database/ModelConfiguration/TorrentInfoConfiguration.cs` | ~50-column mapping + trigram/GIN indexes. |
-| `src/Zilean.Database/Functions/` | Raw SQL: `search_torrents_meta` (V6), `search_imdb_meta` (V3). |
+| `src/Zilean.Database/ModelConfiguration/TorrentInfoConfiguration.cs` | ~50-column mapping + trigram (GiST KNN) + GIN indexes. |
+| `src/Zilean.Database/Functions/` | Raw SQL: `search_torrents_meta` (V7), `search_imdb_meta` (V3). |
 | `src/Zilean.Database/Migrations/` | EF Core migrations (custom-prefixed via `eng/create-new-migration.sh`). |
 | `src/Zilean.Database/Services/TorrentsQueryService.cs` | `/torrents/all` streaming (`StreamAllAsync` — `TryParse` on leading digits for non-numeric `Size`) + `/torrents/checkcached` (`CheckCachedAsync`). |
 | `src/Zilean.Shared/Features/Configuration/` | `ZileanConfiguration`, `DatabaseConfiguration` (env-var resolution order: full connection string → `POSTGRES_*` individuals → defaults). |
