@@ -144,6 +144,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 **Remediation:** Move the key to configuration/environment (e.g. `Zilean__SyncfusionLicense`), read via `ZileanConfiguration`, and `RegisterLicense(configuration.SyncfusionLicense)`; fall back to community/no-license behavior if unset.
 
 **Verified:** `DefaultSyncfusionLicense` const removed from `ZileanConfiguration.cs`; `SyncfusionLicense` property defaults to null; `NormalizeSyncfusionLicense` no longer falls back to a const. `WebApplicationExtensions.cs` already guarded `RegisterLicense` with `!string.IsNullOrWhiteSpace(configuration.SyncfusionLicense)` — unset → Syncfusion community/no-license mode. `grep -r 'DefaultSyncfusionLicense' src/ --include='*.cs'` returns zero hits.
+
 ---
 
 ## ArchitectureSmells (7 fixed, 0 open)

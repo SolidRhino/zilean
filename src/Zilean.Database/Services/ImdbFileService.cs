@@ -1,6 +1,7 @@
 namespace Zilean.Database.Services;
 
-public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbFileService
+public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<ZileanDbContext> dbContextFactory)
+    : IImdbFileService
 {
     private ConcurrentBag<ImdbFile> ImdbFiles { get; } = [];
     public void AddImdbFile(ImdbFile imdbFile) => ImdbFiles.Add(imdbFile);

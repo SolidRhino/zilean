@@ -17,15 +17,24 @@ namespace Zilean.Tests.Tests;
 /// (which is captured at registration time and cannot be changed post-startup).
 /// </summary>
 [Collection(nameof(ApiTestCollection))]
-public class TorznabErrorTests
+public class TorznabErrorTests : IDisposable
 {
     private readonly HttpClient _client;
     private readonly PostgresLifecycleFixture _fixture;
+    private readonly List<WebApplicationFactory<Program>> _derivedFactories = [];
 
     public TorznabErrorTests(PostgresLifecycleFixture fixture)
     {
         _fixture = fixture;
         _client = fixture.Factory.CreateClient();
+    }
+
+    public void Dispose()
+    {
+        foreach (var factory in _derivedFactories)
+        {
+            factory.Dispose();
+        }
     }
 
     [Fact]
@@ -135,13 +144,15 @@ public class TorznabErrorTests
             .When(x => x.SearchForTorrentInfoByOnlyTitle(Arg.Any<string>()))
             .Do(_ => throw new InvalidOperationException("Simulated DB failure"));
 
-        return _fixture.Factory.WithWebHostBuilder(builder =>
+        var factory = _fixture.Factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<ITorrentInfoService>();
                 services.AddSingleton(throwingService);
             });
-        }).CreateClient();
+        });
+        _derivedFactories.Add(factory);
+        return factory.CreateClient();
     }
 }
