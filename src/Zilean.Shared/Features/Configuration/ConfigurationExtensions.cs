@@ -33,11 +33,6 @@ public static class ConfigurationExtensions
             return new ZileanConfiguration();
         }
 
-        if (string.IsNullOrWhiteSpace(config.SyncfusionLicense))
-        {
-            config.SyncfusionLicense = ZileanConfiguration.DefaultSyncfusionLicense;
-        }
-
         return config;
     }
 
