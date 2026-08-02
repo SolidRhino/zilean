@@ -1,20 +1,27 @@
 using System.Text;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using NSubstitute;
+using Zilean.Database.Services;
 
 namespace Zilean.Tests.Tests;
 
 /// <summary>
 /// Integration tests for Torznab error paths and DB-down graceful degradation.
 /// Torznab + /dmm/* endpoints are AllowAnonymous, so the default factory client works.
-/// DB-down tests mutate the ZileanConfiguration singleton's ConnectionString (read
-/// per-call by Dapper) and restore it in finally to avoid leaking the bad CS to
-/// collection-mates.
+/// DB-down tests use <see cref="WebApplicationFactory{TEntryPoint}.WithWebHostBuilder"/>
+/// to override <see cref="ITorrentInfoService"/> with a throwing stub, simulating a
+/// DB failure without mutating the shared DbContextFactory's connection string
+/// (which is captured at registration time and cannot be changed post-startup).
 /// </summary>
 [Collection(nameof(ApiTestCollection))]
-public class TorznabErrorTests
+public class TorznabErrorTests : IDisposable
 {
     private readonly HttpClient _client;
     private readonly PostgresLifecycleFixture _fixture;
+    private readonly List<WebApplicationFactory<Program>> _derivedFactories = [];
 
     public TorznabErrorTests(PostgresLifecycleFixture fixture)
     {
@@ -22,8 +29,13 @@ public class TorznabErrorTests
         _client = fixture.Factory.CreateClient();
     }
 
-    private const string BadConnectionString =
-        "Host=127.0.0.1;Port=1;Database=zilean;Username=postgres;Password=postgres;Timeout=2";
+    public void Dispose()
+    {
+        foreach (var factory in _derivedFactories)
+        {
+            factory.Dispose();
+        }
+    }
 
     [Fact]
     public async Task Torznab_Search_LimitExceedsMax_ReturnsError900()
@@ -66,86 +78,81 @@ public class TorznabErrorTests
     [Fact]
     public async Task Torznab_Search_DbDown_ReturnsError900Xml()
     {
-        var config = ResolveConfig();
-        var originalCs = config.Database.ConnectionString;
-        try
-        {
-            config.Database.ConnectionString = BadConnectionString;
+        var throwingClient = CreateClientWithThrowingTorrentInfoService();
 
-            var response = await _client.GetAsync("/torznab/api?t=search&q=The%20Matrix");
+        var response = await throwingClient.GetAsync("/torznab/api?t=search&q=The%20Matrix");
 
-            response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
-                "because a DB exception during search is caught and returned as error 900");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            "because a DB exception during search is caught and returned as error 900");
 
-            var body = await response.Content.ReadAsStringAsync();
-            var doc = XDocument.Parse(body);
-            doc.Root!.Name.LocalName.Should().Be("error",
-                "because the torznab handler converts DB exceptions to <error> XML");
-            doc.Root.Attribute("code")!.Value.Should().Be("900",
-                "because DB failures map to error code 900");
-        }
-        finally
-        {
-            config.Database.ConnectionString = originalCs;
-        }
+        var body = await response.Content.ReadAsStringAsync();
+        var doc = XDocument.Parse(body);
+        doc.Root!.Name.LocalName.Should().Be("error",
+            "because the torznab handler converts DB exceptions to <error> XML");
+        doc.Root.Attribute("code")!.Value.Should().Be("900",
+            "because DB failures map to error code 900");
     }
 
     [Fact]
     public async Task Dmm_Filtered_DbDown_Returns200EmptyArray()
     {
-        var config = ResolveConfig();
-        var originalCs = config.Database.ConnectionString;
-        try
-        {
-            config.Database.ConnectionString = BadConnectionString;
+        var throwingClient = CreateClientWithThrowingTorrentInfoService();
 
-            var response = await _client.GetAsync("/dmm/filtered?Query=The%20Matrix");
+        var response = await throwingClient.GetAsync("/dmm/filtered?Query=The%20Matrix");
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK,
-                "because PerformFilteredSearch has a catch-all returning 200");
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "because PerformFilteredSearch has a catch-all returning 200");
 
-            var body = await response.Content.ReadAsStringAsync();
-            body.Trim().Should().Be("[]",
-                "because the catch-all returns an empty array on DB failure");
-        }
-        finally
-        {
-            config.Database.ConnectionString = originalCs;
-        }
+        var body = await response.Content.ReadAsStringAsync();
+        body.Trim().Should().Be("[]",
+            "because the catch-all returns an empty array on DB failure");
     }
 
     [Fact]
     public async Task Dmm_Search_DbDown_Returns200EmptyArray()
     {
-        var config = ResolveConfig();
-        var originalCs = config.Database.ConnectionString;
-        try
-        {
-            config.Database.ConnectionString = BadConnectionString;
+        var throwingClient = CreateClientWithThrowingTorrentInfoService();
 
-            var response = await _client.PostAsync(
-                "/dmm/search",
-                new StringContent(
-                    """{"QueryText":"The Matrix"}""",
-                    Encoding.UTF8,
-                    "application/json"));
+        var response = await throwingClient.PostAsync(
+            "/dmm/search",
+            new StringContent(
+                """{"QueryText":"The Matrix"}""",
+                Encoding.UTF8,
+                "application/json"));
 
-            response.StatusCode.Should().Be(HttpStatusCode.OK,
-                "because PerformSearch has a catch-all returning 200");
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "because PerformSearch has a catch-all returning 200");
 
-            var body = await response.Content.ReadAsStringAsync();
-            body.Trim().Should().Be("[]",
-                "because the catch-all returns an empty array on DB failure");
-        }
-        finally
-        {
-            config.Database.ConnectionString = originalCs;
-        }
+        var body = await response.Content.ReadAsStringAsync();
+        body.Trim().Should().Be("[]",
+            "because the catch-all returns an empty array on DB failure");
     }
 
-    private ZileanConfiguration ResolveConfig()
+    /// <summary>
+    /// Creates a derived factory/client where <see cref="ITorrentInfoService"/> throws on
+    /// every search call, simulating a DB-down scenario. The DbContextFactory's connection
+    /// string is captured at registration and cannot be mutated post-startup, so we override
+    /// the service itself instead.
+    /// </summary>
+    private HttpClient CreateClientWithThrowingTorrentInfoService()
     {
-        using var scope = _fixture.Factory.Services.CreateScope();
-        return scope.ServiceProvider.GetRequiredService<ZileanConfiguration>();
+        var throwingService = Substitute.For<ITorrentInfoService>();
+        throwingService
+            .When(x => x.SearchForTorrentInfoFiltered(Arg.Any<TorrentInfoFilter>(), Arg.Any<int?>()))
+            .Do(_ => throw new InvalidOperationException("Simulated DB failure"));
+        throwingService
+            .When(x => x.SearchForTorrentInfoByOnlyTitle(Arg.Any<string>()))
+            .Do(_ => throw new InvalidOperationException("Simulated DB failure"));
+
+        var factory = _fixture.Factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ITorrentInfoService>();
+                services.AddSingleton(throwingService);
+            });
+        });
+        _derivedFactories.Add(factory);
+        return factory.CreateClient();
     }
 }

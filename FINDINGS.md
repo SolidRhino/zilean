@@ -1,16 +1,16 @@
 # Findings
 
-Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified against current code on 2026-08-01 (post-Tier 6 merge).
+Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified against current code on 2026-08-01 (post-Tier 7 merge).
 
 **Summary**
 
 | Category | Fixed | Open | Total |
 |---|---|---|---|
-| SecurityAudit | 6 | 1 | 7 |
-| ArchitectureSmells | 6 | 1 | 7 |
+| SecurityAudit | 7 | 0 | 7 |
+| ArchitectureSmells | 7 | 0 | 7 |
 | TestCoverageGaps | 7 | 0 | 7 |
 | PerformanceDb | 5 | 1 | 6 |
-| **Total** | **24** | **3** | **27** |
+| **Total** | **26** | **1** | **27** |
 
 ---
 
@@ -23,7 +23,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 1. **Security Finding 5 — GITHUB_TOKEN in cleartext git URL** (MED, FIXED): switched to git credential helper expanding `$GITHUB_TOKEN` from env at auth time; token no longer embedded in URL or `.git/config`.
 2. **Security Finding 3 — Secrets in plaintext `settings.json`** (MED, FIXED): `[JsonIgnore]` on `DatabaseConfiguration.ConnectionString` prevents the Postgres password from being serialized to `settings.json`. `ApiKey` remains persisted (intentional — key must survive restarts; the finding itself notes not to use `[JsonIgnore]` blindly).
 3. **Security Finding 6 — Container runs as root** (MED, FIXED): `Dockerfile` run stage creates `zilean` user/group and switches to `USER zilean`; `/app` chowned.
-4. **Security Finding 7 — Hardcoded Syncfusion license** (LOW, OPEN): config override mechanism added (`Zilean__SyncfusionLicense` env var) but the literal base64 key still remains in source as fallback.
+4. **Security Finding 7 — Hardcoded Syncfusion license** (LOW, FIXED): `DefaultSyncfusionLicense` const removed from `ZileanConfiguration.cs`; `SyncfusionLicense` property defaults to null; `NormalizeSyncfusionLicense` no longer falls back to a const. Unset → Syncfusion community/no-license mode.
 
 ### Tier 2 — Test harness foundation (DONE — PR #5)
 
@@ -48,7 +48,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 14. **Arch Finding 1 — Service-locator anti-pattern** (HIGH, FIXED): replaced `IServiceProvider` + `CreateAsyncScope` with constructor-injected `IDbContextFactory<ZileanDbContext>` via `AddDbContextFactory`. All data services (`TorrentInfoService`/`ImdbFileService`/`DmmService`/`EnsureMigrated`) use `CreateDbContextAsync()`.
 15. **Arch Finding 4 — Business logic in endpoint classes** (MED, FIXED): extracted `IBlacklistService` (owns add/remove + cascade torrent delete) and `ITorrentsQueryService` (owns `CheckCachedAsync` + `StreamAllAsync`). Endpoints are thin HTTP delegates mapping `BlacklistResult` → status codes.
 16. **Arch Finding 5 — Singleton IMDb matchers bypass data layer** (MED, FIXED): `ImdbLuceneMatchingService`/`ImdbFuzzyStringMatchingService` inject `IDbContextFactory` + use `FromSqlRaw` instead of raw `NpgsqlConnection`.
-17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED, OPEN): `TorrentInfoService` still inherits `BaseDapperService` AND uses `IDbContextFactory` — Dapper reads and EF reads/writes coexist with no documented boundary. `DmmService` dropped `BaseDapperService` (fixed), but the primary target (`TorrentInfoService`) remains dual-abstraction.
+17. **Arch Finding 6 — Dual Dapper/EF in one service** (MED, FIXED): `TorrentInfoService` and `ImdbFileService` no longer inherit `BaseDapperService`; both use `Database.SqlQueryRaw<T>` for PG-function queries (`search_torrents_meta`, `search_imdb_meta`) and `FromSqlRaw` for entity-shaped queries. `BaseDapperService.cs` and `DapperResult.cs` deleted. Dapper package removed from `Zilean.Database.csproj` and `Directory.Packages.props`.
 18. **Arch Finding 3 — God class `ParseTorrentNameService`** (MED, FIXED): split into `PythonRuntimeService` (engine lifecycle) + `TorrentParser` (RTN orchestration) + `CategoryClassifier` (static category detection).
 
 ### Tier 6 — Remaining test gaps + perf tuning (DONE — PR #10)
@@ -61,7 +61,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 24. **Perf Finding 6 — Trigram search sorts before LIMIT** (MED, OPEN): investigation-only. EXPLAIN on 100K-row scratch Postgres shows GiST KNN is 29% faster but GiST index is 49% larger than GIN (13MB vs 8.7MB); deferred to follow-up PR. `SearchTorrentsMetaV6.cs` unchanged.
 
 
-## SecurityAudit (6 fixed, 1 open)
+## SecurityAudit (7 fixed, 0 open)
 
 ### FIXED — Finding 1 (HIGH)
 
@@ -135,19 +135,19 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 7 (LOW)
+### FIXED — Finding 7 (LOW)
 
-**Path:** `src/Zilean.ApiService/Features/Bootstrapping/WebApplicationExtensions.cs:48`
+**Path:** `src/Zilean.Shared/Features/Configuration/ZileanConfiguration.cs:16-17` + `src/Zilean.Shared/Features/Configuration/ConfigurationExtensions.cs:29-39`
 
-**Description:** Hardcoded Syncfusion license key in source. `RegisterLicense` is called with a literal base64 key embedded directly in `WebApplicationExtensions.cs:48`, compiled into the image and visible to anyone with repo/digest access. A leaked key risks Syncfusion revocation/throttling and can't be rotated without a rebuild.
+**Description:** Hardcoded Syncfusion license key in source. `DefaultSyncfusionLicense` const in `ZileanConfiguration.cs` embedded a literal base64 key compiled into the image and visible to anyone with repo/digest access. A leaked key risks Syncfusion revocation/throttling and can't be rotated without a rebuild.
 
 **Remediation:** Move the key to configuration/environment (e.g. `Zilean__SyncfusionLicense`), read via `ZileanConfiguration`, and `RegisterLicense(configuration.SyncfusionLicense)`; fall back to community/no-license behavior if unset.
 
-**Verified:** `WebApplicationExtensions.cs:51` still has the literal base64 key inline.
+**Verified:** `DefaultSyncfusionLicense` const removed from `ZileanConfiguration.cs`; `SyncfusionLicense` property defaults to null; `NormalizeSyncfusionLicense` no longer falls back to a const. `WebApplicationExtensions.cs` already guarded `RegisterLicense` with `!string.IsNullOrWhiteSpace(configuration.SyncfusionLicense)` — unset → Syncfusion community/no-license mode. `grep -r 'DefaultSyncfusionLicense' src/ --include='*.cs'` returns zero hits.
 
 ---
 
-## ArchitectureSmells (6 fixed, 1 open)
+## ArchitectureSmells (7 fixed, 0 open)
 
 ### FIXED — Finding 1 (HIGH, PR #8)
 
@@ -209,15 +209,15 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 6 (MED)
+### FIXED — Finding 6 (MED)
 
-**Path:** `src/Zilean.Database/Services/BaseDapperService.cs:1-40` + `src/Zilean.Database/Services/TorrentInfoService.cs:73-117`
+**Path:** `src/Zilean.Database/Services/BaseDapperService.cs:1-40` + `src/Zilean.Database/Services/TorrentInfoService.cs` + `src/Zilean.Database/Services/ImdbFileService.cs`
 
-**Description:** Two competing data-access abstractions (Dapper + EF Core DbContext) in the same service with no boundary. `TorrentInfoService` inherits `BaseDapperService` (which provides `ExecuteCommandAsync` over raw `NpgsqlConnection` + Dapper) AND separately resolves `ZileanDbContext` for bulk upserts (`BulkInsertOrUpdateAsync`) and EF queries (`GetExistingInfoHashesAsync`). `SearchForTorrentInfoFiltered` runs Dapper against the `search_torrents_meta` function while `StoreTorrentInfo` uses EF Core BulkExtensions on the same table. WHY IT MATTERS: reads via Dapper and writes via EF can disagree on mapping/concurrency (e.g. the Dapper `TorrentInfoResult` projection vs the EF `TorrentInfo` entity), tracking and change-detection semantics are inconsistent, and contributors must know both ORM paradigms to touch one service.
+**Description:** Two competing data-access abstractions (Dapper + EF Core DbContext) in the same service with no boundary. `TorrentInfoService` inherits `BaseDapperService` (which provides `ExecuteCommandAsync` over raw `NpgsqlConnection` + Dapper) AND separately resolves `ZileanDbContext` for bulk upserts (`BulkInsertOrUpdateAsync`) and EF queries (`GetExistingInfoHashesAsync`). `SearchForTorrentInfoFiltered` runs Dapper against the `search_torrents_meta` function while `StoreTorrentInfo` uses EF Core BulkExtensions on the same table. WHY IT MATTERS: reads via Dapper and writes via EF can disagree on mapping/concurrency (e.g. the Dapper `TorrentInfoResult` projection vs the EF `TorrentInfo` entity), tracking and change-detection semantics are inconsistent, …
 
 **Remediation:** Choose one data-access path per service, or document a clear boundary (e.g. all reads via Dapper, all writes via EF) with shared mapping.
 
-**Verified:** `TorrentInfoService` still inherits `BaseDapperService` AND uses `ZileanDbContext`.
+**Verified:** `TorrentInfoService` and `ImdbFileService` no longer inherit `BaseDapperService`; both use `Database.SqlQueryRaw<T>` for PG-function queries (`search_torrents_meta`, `search_imdb_meta`) and `FromSqlRaw` for entity-shaped queries. A flat `TorrentInfoQueryDto` maps `search_torrents_meta` results without the `Imdb` navigation property that EF rejects for `SqlQueryRaw`. `BaseDapperService.cs` and `DapperResult.cs` deleted. Dapper package removed from `Zilean.Database.csproj` and `Directory.Packages.props`. `grep -r 'BaseDapperService\|Dapper' src/Zilean.Database/ --include='*.cs'` returns zero hits.
 
 ---
 

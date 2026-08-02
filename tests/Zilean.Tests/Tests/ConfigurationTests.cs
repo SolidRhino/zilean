@@ -240,9 +240,8 @@ public class ConfigurationTests
     }
 
     [Fact]
-    public void syncfusion_license_falls_back_to_default_when_env_var_is_empty()
+    public void syncfusion_license_is_null_when_env_var_is_empty()
     {
-        var expected = new ZileanConfiguration().SyncfusionLicense;
         var saved = Environment.GetEnvironmentVariable("Zilean__SyncfusionLicense");
         Environment.SetEnvironmentVariable("Zilean__SyncfusionLicense", "");
         try
@@ -252,10 +251,8 @@ public class ConfigurationTests
                 .Build()
                 .GetZileanConfiguration();
 
-            config.SyncfusionLicense.Should().NotBeNullOrWhiteSpace(
-                "because an empty env var should fall back to the default license");
-            config.SyncfusionLicense.Should().Be(expected,
-                "because the empty value must normalize to the default, not stay empty");
+            config.SyncfusionLicense.Should().BeNullOrWhiteSpace(
+                "because an empty env var means no license is configured — Syncfusion runs in community/no-license mode");
         }
         finally
         {

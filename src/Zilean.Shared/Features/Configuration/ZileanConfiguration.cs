@@ -9,14 +9,11 @@ public class ZileanConfiguration
     };
 
     /// <summary>
-    /// Syncfusion license key. Defaults to the historical hardcoded key so existing deployments
-    /// keep working out of the box; override via the <c>Zilean__SyncfusionLicense</c> env var to
-    /// rotate without rebuilding. Empty/unset falls back to the default below.
+    /// Syncfusion license key. Set via the <c>Zilean__SyncfusionLicense</c> env var.
+    /// If unset, Syncfusion runs in community/no-license mode (components remain
+    /// functional but may display a license banner).
     /// </summary>
-    internal const string DefaultSyncfusionLicense =
-        "MzU4OTgxNkAzMjM3MmUzMDJlMzBuY2dtNzRCZjAzRmtPTDdGcmFRNXVXTDhTOHdjaU9sNDZPUjBWMEsxSmlNPQ==";
-
-    public string? SyncfusionLicense { get; set; } = DefaultSyncfusionLicense;
+    public string? SyncfusionLicense { get; set; }
 
     public string? ApiKey { get; set; } = Utilities.ApiKey.Generate();
     public bool FirstRun { get; set; } = true;

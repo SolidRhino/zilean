@@ -1,7 +1,7 @@
 namespace Zilean.Database.Services;
 
 public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory, IImdbMatchingService imdbMatchingService)
-    : BaseDapperService(logger, configuration), ITorrentInfoService
+    : ITorrentInfoService
 {
     public async Task VaccumTorrentsIndexes(CancellationToken cancellationToken)
     {
@@ -33,7 +33,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         // Don't dispose at the end of the method - keep the in-memory state hot
         // for subsequent batches. ResyncImdbCommand handles its own lifecycle
         // when refreshing IMDb data.
-        if (Configuration.Imdb.EnableImportMatching)
+        if (configuration.Imdb.EnableImportMatching)
         {
             var populateStart = Stopwatch.GetTimestamp();
             await imdbMatchingService.PopulateImdbData();
@@ -60,7 +60,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         {
             currentBatch++;
 
-            if (Configuration.Imdb.EnableImportMatching)
+            if (configuration.Imdb.EnableImportMatching)
             {
                 logger.LogInformation("Matching IMDb IDs for batch {CurrentBatch} of {TotalBatches}", currentBatch, chunks.Count);
                 var matchStart = Stopwatch.GetTimestamp();
@@ -81,26 +81,20 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
     {
         var cleanQuery = Parsing.CleanQuery(query);
 
-        return await ExecuteCommandAsync(async connection =>
-        {
-            var sql =
-                """
-                SELECT
-                    *
-                FROM "Torrents"
-                WHERE "ParsedTitle" % @query
-                AND Length("InfoHash") = 40
-                LIMIT 100;
-                """;
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
-            var parameters = new DynamicParameters();
+        var sql =
+            """
+            SELECT *
+            FROM "Torrents"
+            WHERE "ParsedTitle" % @query
+            AND Length("InfoHash") = 40
+            LIMIT 100
+            """;
 
-            parameters.Add("@query", cleanQuery);
+        var results = await dbContext.Torrents.FromSqlRaw(sql, new NpgsqlParameter("@query", cleanQuery)).ToArrayAsync();
 
-            var result = await connection.QueryAsync<TorrentInfo>(sql, parameters);
-
-            return result.ToArray();
-        }, "Error finding unfiltered dmm entries.");
+        return results;
     }
 
     public async Task<TorrentInfo[]> SearchForTorrentInfoFiltered(TorrentInfoFilter filter, int? limit = null)
@@ -110,43 +104,42 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         var effectiveYear = filter.Year ?? extractedYear;
         var imdbId = EnsureCorrectFormatImdbId(filter);
 
-        return await ExecuteCommandAsync(async connection =>
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+        const string sql =
+            """
+            SELECT *
+            FROM search_torrents_meta(
+                @Query,
+                @Season,
+                @Episode,
+                @Year,
+                @Language,
+                @Resolution,
+                @ImdbId,
+                @Limit,
+                @Category,
+                @SimilarityThreshold
+            )
+            """;
+
+        var parameters = new object[]
         {
-            const string sql =
-                """
-                   SELECT *
-                   FROM search_torrents_meta(
-                       @Query,
-                       @Season,
-                       @Episode,
-                       @Year,
-                       @Language,
-                       @Resolution,
-                       @ImdbId,
-                       @Limit,
-                       @Category,
-                       @SimilarityThreshold
-                   );
-                """;
+            new NpgsqlParameter("@Query", (object?)cleanQuery ?? DBNull.Value),
+            new NpgsqlParameter("@Season", (object?)filter.Season ?? DBNull.Value),
+            new NpgsqlParameter("@Episode", (object?)filter.Episode ?? DBNull.Value),
+            new NpgsqlParameter("@Year", (object?)effectiveYear ?? DBNull.Value),
+            new NpgsqlParameter("@Language", (object?)filter.Language ?? DBNull.Value),
+            new NpgsqlParameter("@Resolution", (object?)filter.Resolution ?? DBNull.Value),
+            new NpgsqlParameter("@ImdbId", (object?)imdbId ?? DBNull.Value),
+            new NpgsqlParameter("@Limit", (object?)(limit ?? configuration.Dmm.MaxFilteredResults)),
+            new NpgsqlParameter("@Category", (object?)filter.Category ?? DBNull.Value),
+            new NpgsqlParameter("@SimilarityThreshold", (float)configuration.Dmm.MinimumScoreMatch),
+        };
 
-            var parameters = new DynamicParameters();
+        var rows = await dbContext.Database.SqlQueryRaw<TorrentInfoQueryDto>(sql, parameters).ToArrayAsync();
 
-            parameters.Add("@Query", cleanQuery);
-            parameters.Add("@Season", filter.Season);
-            parameters.Add("@Episode", filter.Episode);
-            parameters.Add("@Year", effectiveYear);
-            parameters.Add("@Language", filter.Language);
-            parameters.Add("@Resolution", filter.Resolution);
-            parameters.Add("@Category", filter.Category);
-            parameters.Add("@ImdbId", imdbId);
-            parameters.Add("@Limit", limit ?? Configuration.Dmm.MaxFilteredResults);
-            parameters.Add("@SimilarityThreshold", (float)Configuration.Dmm.MinimumScoreMatch);
-
-            var results = await connection.QueryAsync<TorrentInfoResult>(sql, parameters);
-
-            // assign imdb to torrent info
-            return results.Select(MapImdbDataToTorrentInfo).ToArray();
-        }, "Error finding unfiltered dmm entries.");
+        return rows.Select(dto => MapImdbDataToTorrentInfo(dto.ToTorrentInfoResult())).ToArray();
     }
 
     private static string? EnsureCorrectFormatImdbId(TorrentInfoFilter filter)
