@@ -9,8 +9,8 @@ Multi-category audit of the Zilean codebase (2026-07-25/26). Status verified aga
 | SecurityAudit | 7 | 0 | 7 |
 | ArchitectureSmells | 7 | 0 | 7 |
 | TestCoverageGaps | 7 | 0 | 7 |
-| PerformanceDb | 5 | 1 | 6 |
-| **Total** | **26** | **1** | **27** |
+| PerformanceDb | 6 | 0 | 6 |
+| **Total** | **27** | **0** | **27** |
 
 ---
 
@@ -58,7 +58,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 21. **TestGap GAP 6 — Torznab/search error + DB-down tests** (MED, FIXED): `TorznabErrorTests.cs` (5 integration) + `TorznabQueryValidationTests.cs` (4 unit) — error 900/201 + DB-down graceful degradation.
 22. **TestGap GAP 7 — `/torrents/checkcached` + `/torrents/all` tests** (LOW, FIXED): `TorrentsEndpointsTests.cs` — 6 tests covering hash validation bounds, cached/uncached, mixed, and `/torrents/all` stream (proves `long.Parse` → `TryParse` fix).
 23. **Perf Finding 5 — GIL-bound asyncio parsing** (MED, FIXED): replaced `run_process_batches` (asyncio + Semaphore) with sync `foreach` over `parse_torrent_single`. `ParserConcurrency` retained but no longer called by batch path.
-24. **Perf Finding 6 — Trigram search sorts before LIMIT** (MED, OPEN): investigation-only. EXPLAIN on 100K-row scratch Postgres shows GiST KNN is 29% faster but GiST index is 49% larger than GIN (13MB vs 8.7MB); deferred to follow-up PR. `SearchTorrentsMetaV6.cs` unchanged.
+24. **Perf Finding 6 — Trigram search sorts before LIMIT** (MED, FIXED): switched trigram index from GIN to GiST (`gist_trgm_ops`) for KNN distance support. `search_torrents_meta` V7 branches on `query IS NULL`: the NULL path sorts by recency; the non-NULL path uses a two-stage query — inner `ORDER BY "CleanedParsedTitle" <-> query FETCH FIRST N ROWS WITH TIES` (GiST KNN index scan, no full-table sort, preserves boundary ties) plus outer re-sort by distance + `IngestedAt DESC LIMIT N` (trims to exactly N rows). `SearchTorrentsMetaV7.cs` created; migration `20260802000000_SearchV8KnnSearch` deploys V7 + swaps the index.
 
 
 ## SecurityAudit (7 fixed, 0 open)
@@ -321,7 +321,7 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-## PerformanceDb (5 fixed, 1 open)
+## PerformanceDb (6 fixed, 0 open)
 
 ### FIXED — Finding 1 (HIGH, PR #6)
 
@@ -383,12 +383,12 @@ Ordered by risk reduction, dependency, and effort. Tiers can be done in parallel
 
 ---
 
-### OPEN — Finding 6 (MED)
+### FIXED — Finding 6 (MED)
 
-**Path:** `src/Zilean.Database/Functions/SearchTorrentsMetaV6.cs`
+**Path:** `src/Zilean.Database/Functions/SearchTorrentsMetaV7.cs` + `src/Zilean.Database/ModelConfiguration/TorrentInfoConfiguration.cs:5,248-251`
 
 **Description:** Trigram search sorts all threshold matches before LIMIT. The V6 function filters with `t."CleanedParsedTitle" % query` (uses the `idx_cleaned_parsed_title_trgm` GIN index for the `%` predicate), then computes `similarity(...)` and `ORDER BY "Score" DESC` over ALL surviving rows, and only then applies `LIMIT limit_param`. The `ORDER BY` on a computed expression cannot use the index, so PostgreSQL materializes and fully sorts every row above the (possibly lowered) `effective_threshold` before discarding all but the top-N. With a low `effective_threshold` (0.85×0.3 ≈ 0.255 for short queries with filters) and a large Torrents table, the intermediate sort set can be large. Impact: high CPU/sort-memory cost and slow p95 for broad filtered queries.
 
-**Remediation:** (a) Ensure the query uses a restrictive enough threshold, (b) consider a partial index or materialized view for common query patterns, or (c) use `LIMIT` in a subquery before the final sort.
+**Remediation:** Switch the trigram index from GIN to GiST (`gist_trgm_ops`) to enable KNN distance ordering. Use a two-stage query: inner `ORDER BY "CleanedParsedTitle" <-> query FETCH FIRST N ROWS WITH TIES` (the `<->` operator is index-accelerated by GiST KNN, returns top-N without materializing the full match set; `WITH TIES` preserves rows tied at the distance boundary), outer re-sort of the limited rows by distance then `IngestedAt DESC` with a final `LIMIT N` to ensure exactly N rows. Branch on `query IS NULL` so the NULL path uses a plain recency sort without the `<->` operator.
 
-**Verified:** `SearchTorrentsMetaV6.cs` unchanged. Investigation (Tier 6) on 100K-row scratch Postgres: GiST KNN with `%` threshold guard is 29% faster (30ms vs 42.5ms) but GiST index is 49% larger (13MB vs 8.7MB). Deferred to follow-up PR.
+**Verified:** Trigram index switched from GIN to GiST (`gist_trgm_ops`) for KNN distance support. `search_torrents_meta` V7 branches on `query IS NULL`: the NULL path sorts by `IngestedAt DESC`; the non-NULL path uses a two-stage query — inner `ORDER BY "CleanedParsedTitle" <-> query FETCH FIRST limit_param ROWS WITH TIES` (GiST KNN index scan, `Order By:` in Index Scan, no full-table sort; `WITH TIES` preserves rows tied at the distance boundary) plus outer `ORDER BY "Dist", "IngestedAt" DESC LIMIT limit_param` (incremental sort over the tied rows only, final LIMIT ensures exactly N rows). EXPLAIN on 5000-row scratch Postgres confirms: inner `Index Scan using idx_cleaned_parsed_title_trgm` with `Order By: (CleanedParsedTitle <-> query)` scans ~100 rows (boundary ties) without a Sort node; outer `Incremental Sort` re-sorts those rows and `LIMIT 20` trims to exactly 20. `SearchTorrentsMetaV7.cs` created; migration `20260802000000_SearchV8KnnSearch` deploys V7 + swaps the index. 154 tests pass.
