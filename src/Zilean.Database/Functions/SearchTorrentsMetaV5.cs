@@ -1,5 +1,8 @@
 ﻿namespace Zilean.Database.Functions;
 
+/// <summary>
+/// Holds the SQL definition for the <c>search_torrents_meta</c> PostgreSQL function (V5).
+/// </summary>
 public class SearchTorrentsMetaV5
 {
    internal const string Create =

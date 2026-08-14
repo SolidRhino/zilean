@@ -1,5 +1,8 @@
 namespace Zilean.Database.Functions;
 
+/// <summary>
+/// Holds the SQL definition for the <c>search_imdb_meta</c> PostgreSQL function (V3, current).
+/// </summary>
 public static class SearchImdbProcedureV3
 {
     internal const string CreateImdbProcedure =

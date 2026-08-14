@@ -1,7 +1,16 @@
 ﻿namespace Zilean.Shared.Features.Torznab.Categories;
 
+/// <summary>
+/// Provides extension methods for <see cref="TorznabCategory"/> collections.
+/// </summary>
 public static class TorznabCategoryExtensions
 {
+    /// <summary>
+    /// Builds a sorted category tree with subcategories ordered by ID and top-level
+    /// categories sorted by ID (non-numeric IDs sorted last).
+    /// </summary>
+    /// <param name="categories">The source categories to build the tree from.</param>
+    /// <returns>A new sorted list of categories with sorted subcategories.</returns>
     public static List<TorznabCategory> GetTorznabCategoryTree(this List<TorznabCategory> categories)
     {
         var sortedTree = categories

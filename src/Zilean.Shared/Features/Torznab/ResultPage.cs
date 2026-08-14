@@ -1,11 +1,17 @@
 namespace Zilean.Shared.Features.Torznab;
 
+/// <summary>
+/// Models a Torznab RSS result page and serializes releases to the RSS XML feed response.
+/// </summary>
 public partial class ResultPage
 {
     [GeneratedRegex(@"(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\uFEFF\uFFFE\uFFFF]", RegexOptions.Compiled)]
     private static partial Regex InvalidXmlChars();
     private static XNamespace AtomNs => "http://www.w3.org/2005/Atom";
     private static XNamespace TorznabNs => "http://torznab.com/schemas/2015/feed";
+    /// <summary>
+    /// The collection of <see cref="ReleaseInfo"/> entries to include in the RSS feed.
+    /// </summary>
     public IEnumerable<ReleaseInfo> Releases { get; set; } = [];
     private static string RemoveInvalidXmlChars(string? text) =>
         string.IsNullOrEmpty(text) ? null : InvalidXmlChars().Replace(text, "");
@@ -20,6 +26,11 @@ public partial class ResultPage
     private static XElement GetTorznabElement(string name, object? value) =>
         value is null ? null : new XElement(TorznabNs + "attr", new XAttribute("name", name), new XAttribute("value", value));
 
+    /// <summary>
+    /// Serializes the result page to a Torznab-compatible RSS XML string.
+    /// </summary>
+    /// <param name="selfAtom">The self-referencing Atom link URI for the feed.</param>
+    /// <returns>The RSS XML document as a string.</returns>
     public string ToXml(Uri selfAtom)
     {
         var xdoc = new XDocument(

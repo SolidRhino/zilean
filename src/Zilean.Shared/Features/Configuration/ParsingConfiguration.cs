@@ -1,7 +1,15 @@
 ﻿namespace Zilean.Shared.Features.Configuration;
 
+/// <summary>
+/// Configuration for torrent title parsing via the Python RTN library.
+/// Bound from the <c>Zilean__Parsing</c> env var section.
+/// </summary>
 public class ParsingConfiguration
 {
+    /// <summary>
+    /// Number of torrent titles parsed per batch when calling the Python RTN parser.
+    /// Set via the <c>Zilean__Parsing__BatchSize</c> env var.
+    /// </summary>
     public int BatchSize { get; set; } = 5000;
 
     /// <summary>

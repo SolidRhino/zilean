@@ -2,11 +2,20 @@ using Zilean.Database.Dtos;
 
 namespace Zilean.ApiService.Features.Imdb;
 
+/// <summary>
+/// Provides extension methods for mapping IMDb search endpoints.
+/// </summary>
 public static class ImdbEndpoints
 {
     private const string GroupName = "imdb";
     private const string Search = "/search";
 
+    /// <summary>
+    /// Maps the IMDb search endpoint (<c>/search</c>), gated by <c>configuration.Imdb.EnableEndpoint</c>.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <param name="configuration">The Zilean configuration.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapImdbEndpoints(this WebApplication app, ZileanConfiguration configuration)
     {
         if (configuration.Imdb.EnableEndpoint)

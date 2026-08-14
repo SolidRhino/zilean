@@ -1,9 +1,17 @@
 namespace Zilean.Shared.Features.Expressions;
 
+/// <summary>
+/// Renders a LINQ expression tree into a human-readable string representation.
+/// </summary>
 public class ExpressionStringBuilder : ExpressionVisitor
 {
     private readonly StringBuilder _sb = new();
 
+    /// <summary>
+    /// Visits and renders an expression node into the internal string builder.
+    /// </summary>
+    /// <param name="node">The expression node to visit, or <c>null</c>.</param>
+    /// <returns>The original expression node, or <c>null</c> if the input was null.</returns>
     public override Expression Visit(Expression? node)
     {
         if (node == null)
@@ -74,5 +82,9 @@ public class ExpressionStringBuilder : ExpressionVisitor
         return node;
     }
 
+    /// <summary>
+    /// Returns the rendered string representation of the visited expression tree.
+    /// </summary>
+    /// <returns>The accumulated expression string.</returns>
     public override string ToString() => _sb.ToString();
 }

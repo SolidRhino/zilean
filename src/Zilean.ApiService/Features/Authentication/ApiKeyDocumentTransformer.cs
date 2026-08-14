@@ -1,5 +1,15 @@
-﻿public class ApiKeyDocumentTransformer : IOpenApiDocumentTransformer
+/// <summary>
+/// Adds the API key security scheme to the OpenAPI document and applies security requirements to endpoints tagged with <see cref="OpenApiSecurityMetadata"/>.
+/// </summary>
+public class ApiKeyDocumentTransformer : IOpenApiDocumentTransformer
 {
+    /// <summary>
+    /// Injects the <c>X-API-KEY</c> security scheme into the document and attaches it to all protected operations.
+    /// </summary>
+    /// <param name="document">The OpenAPI document being generated.</param>
+    /// <param name="context">The transformer context providing access to API description groups.</param>
+    /// <param name="cancellationToken">A token to observe while transforming the document.</param>
+    /// <returns>A completed task once the security scheme and requirements have been applied.</returns>
     public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
     {
         // Define the API key security scheme

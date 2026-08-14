@@ -2,6 +2,11 @@ using Zilean.Database;
 
 namespace Zilean.Tests.Fixtures;
 
+/// <summary>
+/// Provides canonical seed data for integration tests: five <see cref="TorrentInfo"/> rows
+/// (The Matrix movie, The Witcher S01E01 TV, Breaking Bad S05E16 TV, Mistborn EPUB book,
+/// Dune M4B audiobook) inserted via <see cref="SeedAsync"/>.
+/// </summary>
 public static class TestDataBuilder
 {
     private static readonly TorrentInfo _theMatrix = new()
@@ -96,6 +101,11 @@ public static class TestDataBuilder
         IngestedAt = DateTime.UtcNow,
     };
 
+    /// <summary>
+    /// Seeds the test database with the canonical five-row torrent dataset.
+    /// </summary>
+    /// <param name="dbContext">The DbContext to insert into.</param>
+    /// <returns>A task that completes when the rows are saved.</returns>
     public static async Task SeedAsync(ZileanDbContext dbContext)
     {
         dbContext.Torrents.AddRange(_theMatrix, _theWitcherS01E01, _breakingBadS05E16, _mistbornEpub, _duneAudiobook);

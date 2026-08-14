@@ -298,7 +298,7 @@ dotnet_diagnostic.cs0219.severity = error
 dotnet_diagnostic.cs0618.severity = none
 
 # CS1591: Compiler Warning (level 4) - Missing XML comment for publicly visible type or member
-dotnet_diagnostic.cs1591.severity = none
+dotnet_diagnostic.cs1591.severity = warning
 
 # CS8019: Unnecessary using directive
 dotnet_diagnostic.cs8019.severity = suggestion

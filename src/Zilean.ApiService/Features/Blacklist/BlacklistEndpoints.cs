@@ -1,11 +1,19 @@
 namespace Zilean.ApiService.Features.Blacklist;
 
+/// <summary>
+/// Provides extension methods for mapping blacklist endpoints.
+/// </summary>
 public static class BlacklistEndpoints
 {
     private const string GroupName = "blacklist";
     private const string Add = "/add";
     private const string Remove = "/remove";
 
+    /// <summary>
+    /// Maps the blacklist endpoints (<c>/add</c>, <c>/remove</c>), requiring API key authorization.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapBlacklistEndpoints(this WebApplication app)
     {
         app.MapGroup(GroupName)

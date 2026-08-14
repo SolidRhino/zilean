@@ -1,5 +1,9 @@
 namespace Zilean.Database.Functions;
 
+/// <summary>
+/// Holds the SQL definition for the <c>search_torrents_meta</c> PostgreSQL function (V7, current) —
+/// two-stage GiST KNN trigram ordering with adaptive similarity threshold.
+/// </summary>
 public class SearchTorrentsMetaV7
 {
     internal const string Create =

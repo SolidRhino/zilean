@@ -6,6 +6,13 @@ using Zilean.Shared.Extensions;
 
 namespace Zilean.Database.Services.FuzzyString;
 
+/// <summary>
+/// IMDb matching service backed by FuzzySharp string-similarity scoring over <see cref="ImdbFile"/> entries.
+/// Implements <see cref="IImdbMatchingService"/> using fuzzy title matching partitioned by year and category.
+/// </summary>
+/// <param name="logger">The logger for diagnostic messages.</param>
+/// <param name="configuration">The Zilean configuration controlling cache size and staleness thresholds.</param>
+/// <param name="dbContextFactory">The EF Core context factory for querying IMDb files.</param>
 public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbMatchingService
 {
     private MemoryCache? _imdbCache;
@@ -20,6 +27,7 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
 
     internal int InitializationCount => _initializationCount;
 
+    /// <inheritdoc/>
     public async Task PopulateImdbData()
     {
         if (_imdbCache is not null)
@@ -50,6 +58,7 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
         }
     }
 
+    /// <inheritdoc/>
     public void DisposeImdbData()
     {
         _imdbTvFiles?.Clear();
@@ -62,6 +71,7 @@ public class ImdbFuzzyStringMatchingService(ILogger<ImdbFuzzyStringMatchingServi
         _staleness.Reset();
     }
 
+    /// <inheritdoc/>
     public Task<ConcurrentQueue<TorrentInfo>> MatchImdbIdsForBatchAsync(IEnumerable<TorrentInfo> batch)
     {
         _staleness.WarnIfStale(configuration.Imdb.SnapshotMaxAgeHours);

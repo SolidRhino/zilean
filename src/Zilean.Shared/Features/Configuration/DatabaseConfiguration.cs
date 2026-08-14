@@ -2,11 +2,24 @@ using Npgsql;
 
 namespace Zilean.Shared.Features.Configuration;
 
+/// <summary>
+/// PostgreSQL database connection configuration. The connection string is built from
+/// individual <c>POSTGRES_*</c> env vars or overridden directly via
+/// <c>Zilean__Database__ConnectionString</c>.
+/// </summary>
 public class DatabaseConfiguration
 {
+    /// <summary>
+    /// The PostgreSQL connection string used by EF Core. Not serialized to JSON.
+    /// Built from <c>POSTGRES_*</c> env vars or set via <c>Zilean__Database__ConnectionString</c>.
+    /// </summary>
     [JsonIgnore]
     public string ConnectionString { get; set; }
 
+    /// <summary>
+    /// Initializes a new instance, building the connection string from
+    /// <c>Zilean__Database__ConnectionString</c> or individual <c>POSTGRES_*</c> env vars.
+    /// </summary>
     public DatabaseConfiguration()
     {
         // Check for full connection string first (backwards compat with v3.5.0)
@@ -42,6 +55,7 @@ public class DatabaseConfiguration
     /// <summary>
     /// Returns true if the configured password is empty or a known insecure default.
     /// </summary>
+    /// <returns><c>true</c> if the password is empty or <c>postgres</c>; otherwise <c>false</c>.</returns>
     public bool HasInsecurePassword()
     {
         try

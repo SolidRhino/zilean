@@ -1,5 +1,14 @@
 ﻿namespace Zilean.Scraper.Features.Commands;
 
+/// <summary>
+/// Re-imports IMDb metadata and optionally re-matches torrents to IMDb identifiers.
+/// </summary>
+/// <param name="imdbLoader">Loads IMDb metadata files into the database.</param>
+/// <param name="torrentInfoService">Service for maintaining torrent indexes.</param>
+/// <param name="imdbMatchingService">Service for matching torrents to IMDb identifiers.</param>
+/// <param name="dbContext">Database context for querying and updating torrents.</param>
+/// <param name="serviceProvider">Service provider for creating scoped contexts.</param>
+/// <param name="logger">Logger for diagnostic output.</param>
 public class ResyncImdbCommand(
     ImdbMetadataLoader imdbLoader,
     ITorrentInfoService torrentInfoService,
@@ -8,24 +17,42 @@ public class ResyncImdbCommand(
     IServiceProvider serviceProvider,
     ILogger<ResyncImdbCommand> logger) : AsyncCommand<ResyncImdbCommand.ResyncImdbCommandSettings>
 {
+    /// <summary>
+    /// Settings for <see cref="ResyncImdbCommand"/>.
+    /// </summary>
     public sealed class ResyncImdbCommandSettings : CommandSettings
     {
+        /// <summary>
+        /// Gets or sets a value indicating whether to skip the 14-day date check on IMDb imports and force import.
+        /// </summary>
         [CommandOption("-s|--skip-last-import")]
         [Description("Skip the date check on imdb imports (last 14 days) and force it to import.")]
         [DefaultValue(false)]
         public bool SkipLastImport { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether to match IMDb identifiers for torrents missing them.
+        /// </summary>
         [CommandOption("-t|--retag-missing-imdbs")]
         [Description("Will attempt to match IMDB ids for anything that is missing them in the database.")]
         [DefaultValue(false)]
         public bool RetagMissingImdbs { get; set; }
 
+        /// <summary>
+        /// Gets or sets a value indicating whether to match IMDb identifiers for all torrents.
+        /// </summary>
         [CommandOption("-a|--retag-all-imdbs")]
         [Description("Will attempt to match IMDB ids for all torrents.")]
         [DefaultValue(false)]
         public bool RetagAllImdbs { get; set; }
     }
 
+    /// <summary>
+    /// Re-imports IMDb metadata and optionally re-matches torrents to IMDb identifiers based on settings.
+    /// </summary>
+    /// <param name="context">The command context.</param>
+    /// <param name="settings">The command settings.</param>
+    /// <returns>A task representing the async operation; zero on success, one on failure.</returns>
     public override async Task<int> ExecuteAsync(CommandContext context, ResyncImdbCommandSettings settings)
     {
         if (settings is {RetagAllImdbs: true, RetagMissingImdbs: true})

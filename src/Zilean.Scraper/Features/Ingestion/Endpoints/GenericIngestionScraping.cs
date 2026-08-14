@@ -1,5 +1,16 @@
 namespace Zilean.Scraper.Features.Ingestion.Endpoints;
 
+/// <summary>
+/// Scrapes generic endpoints (Zurg, other Zilean instances, or Kubernetes-discovered services)
+/// and ingests their streamed torrent entries.
+/// </summary>
+/// <param name="configuration">The application configuration.</param>
+/// <param name="torrentInfoService">The torrent info service for bulk-upsert operations.</param>
+/// <param name="parseTorrentNameService">The torrent name parser for RTN parsing.</param>
+/// <param name="loggerFactory">The logger factory for creating loggers.</param>
+/// <param name="clientFactory">The HTTP client factory for creating HTTP clients.</param>
+/// <param name="logger">The logger for diagnostic output.</param>
+/// <param name="kubernetesServiceDiscovery">The Kubernetes service discovery for endpoint discovery.</param>
 public class GenericIngestionScraping(
     ZileanConfiguration configuration,
     ITorrentInfoService torrentInfoService,
@@ -9,6 +20,12 @@ public class GenericIngestionScraping(
     ILogger<GenericIngestionScraping> logger,
     KubernetesServiceDiscovery kubernetesServiceDiscovery)
 {
+    /// <summary>
+    /// Executes the generic ingestion workflow: discovers endpoints, processes each
+    /// through a streamed entry processor, and vacuums the torrent indexes.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>0 on completion.</returns>
     public async Task<int> Execute(CancellationToken cancellationToken)
     {
         logger.LogInformation("Starting ingestion scraping");

@@ -1,5 +1,12 @@
 namespace Zilean.Shared.Features.Python;
 
+/// <summary>
+/// Orchestrates RTN <c>parse()</c> calls against the embedded Python runtime to populate
+/// <see cref="TorrentInfo"/> metadata from raw torrent release names.
+/// </summary>
+/// <param name="runtime">The Python runtime service that owns the embedded CPython engine.</param>
+/// <param name="logger">The logger for parse diagnostics and failures.</param>
+/// <param name="configuration">The Zilean configuration controlling batch sizes and runtime behavior.</param>
 public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> logger, ZileanConfiguration configuration)
 {
     private readonly ILogger<TorrentParser> _logger = logger;
@@ -90,6 +97,12 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
             return asyncio.run(process_batches(info_batches, max_concurrent_tasks))
         """;
 
+    /// <summary>
+    /// Parses and populates RTN metadata for a batch of extracted DMM entries in chunks.
+    /// </summary>
+    /// <param name="torrents">The entries whose <c>RawTitle</c> will be parsed.</param>
+    /// <param name="batchSize">The number of entries to parse per Python invocation.</param>
+    /// <returns>A list of successfully parsed <see cref="TorrentInfo"/> entries (entries that failed parsing are omitted).</returns>
     public async Task<List<TorrentInfo>> ParseAndPopulateAsync(List<ExtractedDmmEntry> torrents, int batchSize = 5000)
     {
         await runtime.Initialization;
@@ -171,6 +184,11 @@ public class TorrentParser(PythonRuntimeService runtime, ILogger<TorrentParser> 
             .ToList();
     }
 
+    /// <summary>
+    /// Parses and populates RTN metadata for a single <see cref="TorrentInfo"/> in place.
+    /// </summary>
+    /// <param name="torrent">The torrent whose <c>RawTitle</c> will be parsed; populated on success.</param>
+    /// <returns>The parsed <see cref="TorrentInfo"/> on success, or <see langword="null"/> on failure.</returns>
     public async Task<TorrentInfo> ParseAndPopulateTorrentInfoAsync(TorrentInfo torrent)
     {
         await runtime.Initialization;

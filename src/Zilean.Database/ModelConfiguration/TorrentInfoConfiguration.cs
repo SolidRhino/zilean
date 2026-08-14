@@ -1,9 +1,17 @@
 namespace Zilean.Database.ModelConfiguration;
 
+/// <summary>
+/// Configures the <see cref="TorrentInfo"/> entity mapping — table name, primary key,
+/// column types, JSON property names, trigram indexes, and PostgreSQL extensions (pg_trgm, unaccent).
+/// </summary>
 public class TorrentInfoConfiguration : IEntityTypeConfiguration<TorrentInfo>
 {
     private static readonly string[] _trigramOps = ["gist_trgm_ops"];
 
+    /// <summary>
+    /// Applies the entity configuration to <paramref name="builder"/>.
+    /// </summary>
+    /// <param name="builder">The entity type builder for <see cref="TorrentInfo"/>.</param>
     public void Configure(EntityTypeBuilder<TorrentInfo> builder)
     {
         builder.ToTable("Torrents");

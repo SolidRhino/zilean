@@ -1,5 +1,11 @@
 namespace Zilean.ApiService.Features.Bootstrapping;
 
+/// <summary>
+/// Hosted lifecycle service that validates configuration, waits for the database, applies EF Core migrations, and triggers the first DMM sync on startup.
+/// </summary>
+/// <param name="configuration">The Zilean configuration to validate and inspect.</param>
+/// <param name="serviceProvider">The application service provider used to resolve scoped services like <see cref="ZileanDbContext"/>.</param>
+/// <param name="loggerFactory">The logger factory used to create loggers for startup diagnostics.</param>
 public class StartupService(
     ZileanConfiguration configuration,
     IServiceProvider serviceProvider,
@@ -8,10 +14,25 @@ public class StartupService(
     private const int MaxRetries = 5;
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// No-op; called by the host before <see cref="StartingAsync"/>. Startup work is performed in <see cref="StartingAsync"/>.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A completed task.</returns>
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// No-op; called by the host after <see cref="StoppingAsync"/>.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A completed task.</returns>
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Runs early in the host startup pipeline: warns about insecure database passwords, validates configuration, waits for the database to be reachable, and applies pending migrations.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A task that completes when the database is ready and migrations have been applied.</returns>
     public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var logger = loggerFactory.CreateLogger<StartupService>();
@@ -47,32 +68,28 @@ public class StartupService(
 
     private async Task WaitForDatabaseAsync(ILogger logger, CancellationToken cancellationToken)
     {
-        var connectionString = configuration.Database.ConnectionString;
-
-        for (var attempt = 1; attempt <= MaxRetries; attempt++)
+        var retries = 0;
+        while (retries < MaxRetries)
         {
             try
             {
-                await using var connection = new Npgsql.NpgsqlConnection(connectionString);
+                await using var connection = new Npgsql.NpgsqlConnection(configuration.Database.ConnectionString);
                 await connection.OpenAsync(cancellationToken);
-                logger.LogInformation("Database connection established.");
+                logger.LogInformation("Database connection established on attempt {Attempt}.", retries + 1);
                 return;
             }
-            catch (Exception ex) when (attempt < MaxRetries)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogWarning("Database connection attempt {Attempt}/{MaxRetries} failed: {Message}. Retrying in {Delay}s...",
-                    attempt, MaxRetries, ex.Message, _retryDelay.TotalSeconds);
+                retries++;
+                var host = GetConnectionHost(configuration.Database.ConnectionString);
+                var database = GetConnectionDatabase(configuration.Database.ConnectionString);
+                logger.LogWarning("Database not ready (attempt {Attempt}/{MaxRetries}). Host: {Host}, Database: {Database}. Retrying in {Delay}s. Error: {Error}",
+                    retries, MaxRetries, host, database, _retryDelay.TotalSeconds, ex.Message);
                 await Task.Delay(_retryDelay, cancellationToken);
             }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to connect to database after {MaxRetries} attempts. " +
-                    "Connection string: Host={Host}, Database={Database}. " +
-                    "Check that PostgreSQL is running, the database exists, and credentials are correct.",
-                    MaxRetries, GetConnectionHost(connectionString), GetConnectionDatabase(connectionString));
-                throw;
-            }
         }
+
+        throw new InvalidOperationException($"Could not connect to the database after {MaxRetries} attempts. Please check your connection string and ensure the database is running.");
     }
 
     private static string GetConnectionHost(string connectionString)
@@ -87,10 +104,25 @@ public class StartupService(
         catch { return "unknown"; }
     }
 
+    /// <summary>
+    /// No-op; called by the host after <see cref="StopAsync"/>.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A completed task.</returns>
     public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// No-op; called by the host before <see cref="StopAsync"/>.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A completed task.</returns>
     public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <summary>
+    /// Runs after the host has fully started: triggers the first DMM sync job if scraping is enabled and no pages have been parsed yet.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A task that completes when the first-run sync check is done.</returns>
     public async Task StartedAsync(CancellationToken cancellationToken)
     {
         var logger = loggerFactory.CreateLogger<StartupService>();

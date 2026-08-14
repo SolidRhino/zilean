@@ -1,7 +1,16 @@
 ﻿namespace Zilean.ApiService.Features.Torznab;
 
+/// <summary>
+/// Provides extension methods for validating and inspecting <see cref="TorznabQuery"/> objects.
+/// </summary>
 public static class TorznabQueryExtensions
 {
+    /// <summary>
+    /// Validates the query parameters against the server's Torznab capabilities, logging warnings
+    /// and throwing <see cref="NotSupportedException"/> for unsupported features.
+    /// </summary>
+    /// <param name="query">The Torznab query to validate.</param>
+    /// <param name="logger">The logger used to emit validation warnings.</param>
     public static void ValidateQueryAgainstCapabilities(this TorznabQuery query, ILogger logger)
     {
         if (query.ImdbID != null)
@@ -67,6 +76,11 @@ public static class TorznabQueryExtensions
         logger.LogInformation("Query validated successfully against capabilities.");
     }
 
+    /// <summary>
+    /// Determines whether the query can be handled given the server's Torznab capabilities.
+    /// </summary>
+    /// <param name="query">The Torznab query to check.</param>
+    /// <returns><c>true</c> if all query parameters are supported; otherwise <c>false</c>.</returns>
     public static bool CanHandleQuery(this TorznabQuery query)
     {
         if (query.ImdbID != null)

@@ -3,10 +3,20 @@ using ILogger = Serilog.ILogger;
 
 namespace Zilean.ApiService.Features.Torznab;
 
+/// <summary>
+/// Provides extension methods for converting <see cref="TorznabRequest"/> objects
+/// into <see cref="TorznabQuery"/> objects.
+/// </summary>
 public static class TorznabRequestExtensions
 {
     private static ILogger Logger => Log.ForContext(typeof(TorznabRequestExtensions));
 
+    /// <summary>
+    /// Converts this <see cref="TorznabRequest"/> into a <see cref="TorznabQuery"/>,
+    /// parsing category IDs and numeric fields.
+    /// </summary>
+    /// <param name="request">The Torznab request to convert.</param>
+    /// <returns>A <see cref="TorznabQuery"/> populated from the request, or <c>null</c> if conversion fails.</returns>
     public static TorznabQuery? ToTorznabQuery(this TorznabRequest request)
     {
         try

@@ -1,5 +1,16 @@
 namespace Zilean.Scraper.Features.Ingestion.Dmm;
 
+/// <summary>
+/// Orchestrates the DMM sync process: downloads the hashlist, processes HTML files,
+/// parses LZ-string-encoded JSON entries, and bulk-upserts torrent metadata.
+/// </summary>
+/// <param name="downloader">The DMM file downloader.</param>
+/// <param name="parseTorrentNameService">The torrent name parser for RTN parsing.</param>
+/// <param name="torrentInfoService">The torrent info service for bulk-upsert operations.</param>
+/// <param name="configuration">The application configuration.</param>
+/// <param name="logger">The logger for diagnostic output.</param>
+/// <param name="loggerFactory">The logger factory for creating loggers.</param>
+/// <param name="dmmService">The DMM service for import-status persistence.</param>
 public class DmmScraping(
     DmmFileDownloader downloader,
     TorrentParser parseTorrentNameService,
@@ -9,6 +20,11 @@ public class DmmScraping(
     ILoggerFactory loggerFactory,
     DmmService dmmService)
 {
+    /// <summary>
+    /// Executes the full DMM sync workflow: download, parse, and upsert.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>0 on success, 1 on error.</returns>
     public async Task<int> Execute(CancellationToken cancellationToken)
     {
         try

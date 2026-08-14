@@ -1,5 +1,8 @@
 namespace Zilean.ApiService.Features.Search;
 
+/// <summary>
+/// Provides extension methods for mapping DMM search endpoints.
+/// </summary>
 public static class SearchEndpoints
 {
     private const string GroupName = "dmm";
@@ -7,6 +10,13 @@ public static class SearchEndpoints
     private const string Filtered = "/filtered";
     private const string Ingest = "/on-demand-scrape";
 
+    /// <summary>
+    /// Maps the DMM search endpoints (<c>/search</c>, <c>/filtered</c>, <c>/on-demand-scrape</c>),
+    /// gated by <c>configuration.Dmm.EnableEndpoint</c>.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <param name="configuration">The Zilean configuration.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapDmmEndpoints(this WebApplication app, ZileanConfiguration configuration)
     {
         if (configuration.Dmm.EnableEndpoint)

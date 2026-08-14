@@ -1,5 +1,8 @@
 namespace Zilean.Scraper.Features.LzString;
 
+/// <summary>
+/// Decompresses LZ-string-encoded URI components, used to decode DMM hashlist payloads.
+/// </summary>
 public class Decompressor
 {
     private const string KeyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
@@ -15,6 +18,11 @@ public class Decompressor
         return dict;
     }
 
+    /// <summary>
+    /// Decompresses an LZ-string-encoded URI component back to the original string.
+    /// </summary>
+    /// <param name="input">The LZ-string-encoded URI-safe input.</param>
+    /// <returns>The decompressed string.</returns>
     public static string FromEncodedUriComponent(string input)
     {
         ArgumentNullException.ThrowIfNull(input);
