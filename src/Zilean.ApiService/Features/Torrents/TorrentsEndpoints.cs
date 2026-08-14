@@ -1,5 +1,8 @@
 namespace Zilean.ApiService.Features.Torrents;
 
+/// <summary>
+/// Provides extension methods for mapping torrents endpoints.
+/// </summary>
 public static class TorrentsEndpoints
 {
     private const string GroupName = "torrents";
@@ -8,6 +11,13 @@ public static class TorrentsEndpoints
     private const string NoHashesProvidedError = "No hashes provided";
     private const string TooManyHashesError = "Too many hashes provided. The limit is {0}.";
 
+    /// <summary>
+    /// Maps the torrents endpoints (<c>/all</c>, <c>/checkcached</c>), gated by
+    /// <c>configuration.Torrents.EnableEndpoint</c> and requiring API key authorization.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <param name="configuration">The Zilean configuration.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapTorrentsEndpoints(this WebApplication app, ZileanConfiguration configuration)
     {
         if (configuration.Torrents.EnableEndpoint)

@@ -1,5 +1,11 @@
 namespace Zilean.Scraper.Features.Ingestion.Dmm;
 
+/// <summary>
+/// Downloads the DMM hashlist repository by cloning or pulling the git repo
+/// and copying relevant HTML files to the local data directory.
+/// </summary>
+/// <param name="logger">The logger for diagnostic output.</param>
+/// <param name="configuration">The application configuration.</param>
 public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfiguration configuration)
 {
     private const string RepoUrl = "https://github.com/debridmediamanager/hashlists.git";
@@ -22,6 +28,13 @@ public class DmmFileDownloader(ILogger<DmmFileDownloader> logger, ZileanConfigur
         ".git",
     ];
 
+    /// <summary>
+    /// Downloads the DMM hashlist files to a temporary directory, cloning or pulling
+    /// the repository as needed, then copies them to the configured data directory.
+    /// </summary>
+    /// <param name="dmmLastImport">The last import metadata, or <c>null</c> for a fresh clone.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The path to the temporary directory containing the downloaded files.</returns>
     public async Task<string> DownloadFileToTempPath(DmmLastImport? dmmLastImport, CancellationToken cancellationToken)
     {
         logger.LogInformation("Syncing DMM Hashlists");

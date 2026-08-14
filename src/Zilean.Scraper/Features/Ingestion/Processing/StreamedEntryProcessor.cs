@@ -1,5 +1,14 @@
 ﻿namespace Zilean.Scraper.Features.Ingestion.Processing;
 
+/// <summary>
+/// Processes streamed entries from a generic endpoint (Zurg or another Zilean instance)
+/// through a bounded channel, transforming them into torrent metadata for bulk-upsert.
+/// </summary>
+/// <param name="torrentInfoService">The torrent info service for bulk-upsert operations.</param>
+/// <param name="parseTorrentNameService">The torrent name parser for RTN parsing.</param>
+/// <param name="loggerFactory">The logger factory for creating loggers.</param>
+/// <param name="clientFactory">The HTTP client factory for creating HTTP clients.</param>
+/// <param name="configuration">The application configuration.</param>
 public class StreamedEntryProcessor(
     ITorrentInfoService torrentInfoService,
     TorrentParser parseTorrentNameService,
@@ -9,9 +18,21 @@ public class StreamedEntryProcessor(
 {
     private GenericEndpoint? _currentEndpoint;
 
+    /// <summary>
+    /// Converts a <see cref="StreamedEntry"/> into an <see cref="ExtractedDmmEntry"/>.
+    /// </summary>
+    /// <param name="input">The streamed entry to convert.</param>
+    /// <returns>The converted <see cref="ExtractedDmmEntry"/>.</returns>
     protected override ExtractedDmmEntry TransformToTorrent(StreamedEntry input) =>
         ExtractedDmmEntry.FromStreamedEntry(input);
 
+    /// <summary>
+    /// Processes entries from the specified generic endpoint, fetching and parsing
+    /// the streamed JSON response into torrent metadata.
+    /// </summary>
+    /// <param name="endpoint">The generic endpoint to scrape.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the async operation.</returns>
     public async Task ProcessEndpointAsync(GenericEndpoint endpoint, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();

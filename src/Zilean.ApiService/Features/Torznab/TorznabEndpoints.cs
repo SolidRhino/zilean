@@ -1,9 +1,18 @@
 namespace Zilean.ApiService.Features.Torznab;
 
+/// <summary>
+/// Provides extension methods for mapping Torznab API endpoints.
+/// </summary>
 public static class TorznabEndpoints
 {
     private const string GroupName = "torznab";
 
+    /// <summary>
+    /// Maps the Torznab API endpoint (<c>/api</c>), gated by <c>configuration.Torznab.EnableEndpoint</c>.
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <param name="configuration">The Zilean configuration.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapTorznabEndpoints(this WebApplication app, ZileanConfiguration configuration)
     {
         if (configuration.Torznab.EnableEndpoint)

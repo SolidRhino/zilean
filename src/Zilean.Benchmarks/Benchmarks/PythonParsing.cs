@@ -3,6 +3,10 @@ using Zilean.Shared.Features.Python;
 
 namespace Zilean.Benchmarks.Benchmarks;
 
+/// <summary>
+/// Benchmarks RTN torrent-name parsing throughput via <see cref="TorrentParser.ParseAndPopulateAsync"/>
+/// at 1k, 5k, 10k, and 100k synthetic torrent entries.
+/// </summary>
 public class PythonParsing
 {
     private TorrentParser _service = null!;
@@ -11,6 +15,10 @@ public class PythonParsing
     private List<ExtractedDmmEntry>? _tenK;
     private List<ExtractedDmmEntry>? _oneHundredK;
 
+    /// <summary>
+    /// Initializes the Python runtime, creates the <see cref="TorrentParser"/> service,
+    /// and generates synthetic torrent datasets at 1k/5k/10k/100k entries.
+    /// </summary>
     [GlobalSetup]
     public void Setup()
     {
@@ -26,6 +34,10 @@ public class PythonParsing
         _oneHundredK = GenerateTorrents(100000);
     }
 
+    /// <summary>
+    /// Benchmarks RTN parsing throughput for 1,000 synthetic torrents.
+    /// </summary>
+    /// <returns>The parsed <see cref="TorrentInfo"/> entries.</returns>
     [Benchmark]
     public async Task<List<TorrentInfo>> ParseTorrent_1K_Success()
     {
@@ -33,6 +45,10 @@ public class PythonParsing
         return results;
     }
 
+    /// <summary>
+    /// Benchmarks RTN parsing throughput for 5,000 synthetic torrents.
+    /// </summary>
+    /// <returns>The parsed <see cref="TorrentInfo"/> entries.</returns>
     [Benchmark]
     public async Task<List<TorrentInfo>> ParseTorrent_5K_Success()
     {
@@ -40,6 +56,10 @@ public class PythonParsing
         return results;
     }
 
+    /// <summary>
+    /// Benchmarks RTN parsing throughput for 10,000 synthetic torrents.
+    /// </summary>
+    /// <returns>The parsed <see cref="TorrentInfo"/> entries.</returns>
     [Benchmark]
     public async Task<List<TorrentInfo>> ParseTorrent_10k_Success()
     {
@@ -47,6 +67,10 @@ public class PythonParsing
         return results;
     }
 
+    /// <summary>
+    /// Benchmarks RTN parsing throughput for 100,000 synthetic torrents.
+    /// </summary>
+    /// <returns>The parsed <see cref="TorrentInfo"/> entries.</returns>
     [Benchmark]
     public async Task<List<TorrentInfo>> ParseTorrent_100k_Success()
     {

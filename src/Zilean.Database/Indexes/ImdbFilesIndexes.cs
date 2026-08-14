@@ -1,5 +1,9 @@
 namespace Zilean.Database.Indexes;
 
+/// <summary>
+/// Holds raw SQL scripts for creating and removing GIN/B-tree indexes on the
+/// <c>ImdbFiles</c> and <c>Torrents</c> tables.
+/// </summary>
 public static class ImdbFilesIndexes
 {
     internal const string CreateIndexes =

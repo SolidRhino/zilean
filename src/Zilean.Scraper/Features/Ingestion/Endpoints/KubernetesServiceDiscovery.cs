@@ -1,11 +1,23 @@
 ﻿namespace Zilean.Scraper.Features.Ingestion.Endpoints;
 
+/// <summary>
+/// Discovers generic ingestion endpoints by querying Kubernetes services matching
+/// configured label selectors.
+/// </summary>
+/// <param name="logger">The logger for diagnostic output.</param>
+/// <param name="configuration">The application configuration.</param>
 public class KubernetesServiceDiscovery(
     ILogger<KubernetesServiceDiscovery> logger,
     ZileanConfiguration configuration)
 {
     private record DiscoveredService(V1Service Service, KubernetesSelector Selector);
 
+    /// <summary>
+    /// Discovers generic endpoints by listing Kubernetes services matching configured
+    /// label selectors across all namespaces.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A list of discovered <see cref="GenericEndpoint"/> instances.</returns>
     public async Task<List<GenericEndpoint>> DiscoverUrlsAsync(CancellationToken cancellationToken = default)
     {
         var urls = new List<GenericEndpoint>();

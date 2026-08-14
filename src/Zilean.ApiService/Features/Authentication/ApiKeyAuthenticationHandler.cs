@@ -1,5 +1,12 @@
 ﻿namespace Zilean.ApiService.Features.Authentication;
 
+/// <summary>
+/// Validates the <c>X-API-KEY</c> request header against the configured API key and produces an authenticated principal on success.
+/// </summary>
+/// <param name="options">Monitors the <see cref="AuthenticationSchemeOptions"/> for the scheme.</param>
+/// <param name="logger">The logger factory used to create loggers for the handler.</param>
+/// <param name="encoder">The URL encoder for authentication header values.</param>
+/// <param name="configuration">The Zilean configuration containing the expected API key.</param>
 public class ApiKeyAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
@@ -7,6 +14,10 @@ public class ApiKeyAuthenticationHandler(
     ZileanConfiguration configuration)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
+    /// <summary>
+    /// Authenticates the current request by comparing the <c>X-API-KEY</c> header to the configured key using a fixed-time comparison.
+    /// </summary>
+    /// <returns>A successful <see cref="AuthenticateResult"/> with an <c>ApiKeyUser</c> principal, or a failed result when the key is missing or invalid.</returns>
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue("X-API-KEY", out var extractedApiKey))
@@ -31,4 +42,3 @@ public class ApiKeyAuthenticationHandler(
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 }
-

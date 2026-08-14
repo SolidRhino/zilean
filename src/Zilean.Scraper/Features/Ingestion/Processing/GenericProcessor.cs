@@ -2,6 +2,15 @@
 
 namespace Zilean.Scraper.Features.Ingestion.Processing;
 
+/// <summary>
+/// Base class for processing extracted entries through a bounded channel,
+/// batching them for bulk-upsert into the torrent info database.
+/// </summary>
+/// <param name="loggerFactory">The logger factory for creating loggers.</param>
+/// <param name="torrentInfoService">The torrent info service for bulk-upsert and blacklist operations.</param>
+/// <param name="parseTorrentNameService">The torrent name parser for RTN parsing.</param>
+/// <param name="configuration">The application configuration.</param>
+/// <typeparam name="TInput">The type of input entries to process.</typeparam>
 public abstract class GenericProcessor<TInput>(
     ILoggerFactory loggerFactory,
     ITorrentInfoService torrentInfoService,
@@ -9,14 +18,35 @@ public abstract class GenericProcessor<TInput>(
     ZileanConfiguration configuration)
     where TInput : class
 {
+    /// <summary>
+    /// The logger for this processor instance.
+    /// </summary>
     protected readonly ILogger<GenericProcessor<TInput>> _logger = loggerFactory.CreateLogger<GenericProcessor<TInput>>();
+    /// <summary>
+    /// Transforms an input entry into an <see cref="ExtractedDmmEntry"/>.
+    /// </summary>
+    /// <param name="input">The input entry to transform.</param>
+    /// <returns>The transformed <see cref="ExtractedDmmEntry"/>.</returns>
     protected abstract ExtractedDmmEntry TransformToTorrent(TInput input);
+    /// <summary>
+    /// Tracks counts of processed, filtered, and removed entries during ingestion.
+    /// </summary>
     protected readonly ProcessedCounts _processedCounts = new();
+    /// <summary>
+    /// The application configuration.
+    /// </summary>
     protected readonly ZileanConfiguration _configuration = configuration;
     private HashSet<string> _blacklistedHashes = [];
     private readonly ObjectPool<List<ExtractedDmmEntry>> _torrentsListPool = new DefaultObjectPoolProvider().Create<List<ExtractedDmmEntry>>();
     private int _batchNumber;
 
+    /// <summary>
+    /// Processes entries by running a producer and consumer over a bounded channel,
+    /// batching results for bulk-upsert.
+    /// </summary>
+    /// <param name="producerAction">The async producer that writes entries to the channel.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the async operation.</returns>
     protected async Task ProcessAsync(Func<ChannelWriter<Task<TInput>>, CancellationToken, Task> producerAction, CancellationToken cancellationToken)
     {
         _batchNumber = 0;

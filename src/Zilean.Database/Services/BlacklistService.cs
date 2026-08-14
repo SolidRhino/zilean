@@ -1,7 +1,11 @@
 namespace Zilean.Database.Services;
 
+/// <summary>
+/// Default implementation of <see cref="IBlacklistService"/> for managing blacklisted torrent info hashes via EF Core.
+/// </summary>
 public class BlacklistService(IDbContextFactory<ZileanDbContext> dbContextFactory, ILogger<BlacklistService> logger) : IBlacklistService
 {
+    /// <inheritdoc/>
     public async Task<BlacklistResult> AddAsync(string infoHash, string reason, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(infoHash))
@@ -43,6 +47,7 @@ public class BlacklistService(IDbContextFactory<ZileanDbContext> dbContextFactor
         return BlacklistResult.Added;
     }
 
+    /// <inheritdoc/>
     public async Task<BlacklistResult> RemoveAsync(string infoHash, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(infoHash))

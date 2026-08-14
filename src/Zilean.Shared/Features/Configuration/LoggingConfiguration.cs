@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace Zilean.Shared.Features.Configuration;
 
+/// <summary>
+/// Extension methods for registering Serilog logging configuration from JSON files.
+/// </summary>
 public static class LoggingConfiguration
 {
     private const string DefaultLoggingContents =
@@ -23,6 +26,13 @@ public static class LoggingConfiguration
         }
         """;
 
+    /// <summary>
+    /// Adds the Serilog logging JSON file to the configuration builder, creating a
+    /// default <c>logging.json</c> if one does not already exist.
+    /// </summary>
+    /// <param name="configuration">The configuration builder to extend.</param>
+    /// <param name="configurationFolderPath">Path to the directory where <c>logging.json</c> is stored.</param>
+    /// <returns>The same <paramref name="configuration"/> builder instance for chaining.</returns>
     public static IConfigurationBuilder AddLoggingConfiguration(this IConfigurationBuilder configuration, string configurationFolderPath)
     {
         EnsureExists(configurationFolderPath);

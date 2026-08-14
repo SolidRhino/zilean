@@ -1,7 +1,11 @@
 namespace Zilean.Database.Services;
 
+/// <summary>
+/// Default implementation of <see cref="ITorrentsQueryService"/> for cached torrent lookups and streaming via EF Core.
+/// </summary>
 public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFactory) : ITorrentsQueryService
 {
+    /// <inheritdoc/>
     public async Task<IReadOnlyList<CachedItem>> CheckCachedAsync(string[] hashes, int maxHashes, CancellationToken ct)
     {
         if (hashes.Length > maxHashes)
@@ -49,6 +53,7 @@ public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFa
         return items;
     }
 
+    /// <inheritdoc/>
     public async IAsyncEnumerable<StreamedEntry> StreamAllAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(ct);

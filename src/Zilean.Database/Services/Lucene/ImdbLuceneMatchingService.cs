@@ -6,6 +6,13 @@ using Zilean.Database.Services.Common;
 
 namespace Zilean.Database.Services.Lucene;
 
+/// <summary>
+/// IMDb matching service backed by an in-memory Lucene full-text index over <see cref="ImdbFile"/> entries.
+/// Implements <see cref="IImdbMatchingService"/> using Lucene.NET queries for title, year, and category matching.
+/// </summary>
+/// <param name="logger">The logger for diagnostic messages.</param>
+/// <param name="configuration">The Zilean configuration controlling cache size and staleness thresholds.</param>
+/// <param name="dbContextFactory">The EF Core context factory for querying IMDb files.</param>
 public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory) : IImdbMatchingService
 {
     private MemoryCache? _imdbCache;
@@ -19,6 +26,7 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
 
     internal int InitializationCount => _initializationCount;
 
+    /// <inheritdoc/>
     public async Task PopulateImdbData()
     {
         if (_imdbFilesIndex is not null)
@@ -51,6 +59,7 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
         }
     }
 
+    /// <inheritdoc/>
     public void DisposeImdbData()
     {
         _reader?.Dispose();
@@ -65,6 +74,7 @@ public class ImdbLuceneMatchingService(ILogger<ImdbLuceneMatchingService> logger
         _staleness.Reset();
     }
 
+    /// <inheritdoc/>
     public Task<ConcurrentQueue<TorrentInfo>> MatchImdbIdsForBatchAsync(IEnumerable<TorrentInfo> batch)
     {
         if (_imdbFilesIndex is null)

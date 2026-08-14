@@ -1,10 +1,16 @@
 namespace Zilean.Database.Services;
 
+/// <summary>
+/// Default implementation of <see cref="IImdbFileService"/> for staging, bulk-storing,
+/// and searching IMDb metadata using EF Core.
+/// </summary>
 public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<ZileanDbContext> dbContextFactory)
     : IImdbFileService
 {
     private ConcurrentBag<ImdbFile> ImdbFiles { get; } = [];
+    /// <inheritdoc/>
     public void AddImdbFile(ImdbFile imdbFile) => ImdbFiles.Add(imdbFile);
+    /// <inheritdoc/>
     public async Task StoreImdbFiles()
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
@@ -41,12 +47,14 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<
         await SetImdbLastImportAsync(imdbLastImport);
     }
 
+    /// <inheritdoc/>
     public async Task VaccumImdbFilesIndexes(CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         await dbContext.Database.ExecuteSqlRawAsync("VACUUM (VERBOSE, ANALYZE) \"ImdbFiles\"", cancellationToken: cancellationToken);
     }
 
+    /// <inheritdoc/>
     public async Task<ImdbSearchResult[]> SearchForImdbIdAsync(string query, int? year = null, string? category = null)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
@@ -74,6 +82,7 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<
         return results;
     }
 
+    /// <inheritdoc/>
     public async Task<ImdbLastImport?> GetImdbLastImportAsync(CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
@@ -83,6 +92,7 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<
         return imdbLastImport?.Value.Deserialize<ImdbLastImport>();
     }
 
+    /// <inheritdoc/>
     public async Task SetImdbLastImportAsync(ImdbLastImport imdbLastImport)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
@@ -104,5 +114,6 @@ public class ImdbFileService(ILogger<ImdbFileService> logger, IDbContextFactory<
         await dbContext.SaveChangesAsync();
     }
 
+    /// <inheritdoc/>
     public int ImdbFileCount => ImdbFiles.Count;
 }

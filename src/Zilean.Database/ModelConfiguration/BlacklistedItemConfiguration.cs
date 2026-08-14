@@ -1,7 +1,14 @@
 namespace Zilean.Database.ModelConfiguration;
 
+/// <summary>
+/// Configures the <see cref="BlacklistedItem"/> entity — table name, primary key (<c>InfoHash</c>), column types, JSON property names, default timestamp, and a unique index on <c>InfoHash</c>.
+/// </summary>
 public class BlacklistedItemConfiguration: IEntityTypeConfiguration<BlacklistedItem>
 {
+    /// <summary>
+    /// Applies the entity configuration to <paramref name="builder"/>.
+    /// </summary>
+    /// <param name="builder">The entity type builder for <see cref="BlacklistedItem"/>.</param>
     public void Configure(EntityTypeBuilder<BlacklistedItem> builder)
     {
         builder.ToTable("BlacklistedItems");

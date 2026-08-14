@@ -1,5 +1,11 @@
 namespace Zilean.Scraper.Features.Imdb;
 
+/// <summary>
+/// Imports IMDb basics TSV data, filtering to required categories and storing
+/// the parsed records via the IMDb file service.
+/// </summary>
+/// <param name="logger">The logger for diagnostic output.</param>
+/// <param name="imdbFileService">The IMDb file service for storing parsed records.</param>
 public class ImdbFileProcessor(ILogger<ImdbFileProcessor> logger, IImdbFileService imdbFileService)
 {
     private static readonly List<string> _requiredCategories = [
@@ -11,6 +17,13 @@ public class ImdbFileProcessor(ILogger<ImdbFileProcessor> logger, IImdbFileServi
         "tvSpecial",
     ];
 
+    /// <summary>
+    /// Imports the IMDb basics TSV file, filtering entries to required categories
+    /// and bulk-storing the parsed records.
+    /// </summary>
+    /// <param name="fileName">The path to the IMDb TSV file to import.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>A task representing the async operation.</returns>
     public async Task Import(string fileName, CancellationToken cancellationToken)
     {
         logger.LogInformation("Importing Downloaded IMDB Basics data from {FilePath}", fileName);

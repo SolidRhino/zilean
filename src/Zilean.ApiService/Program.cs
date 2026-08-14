@@ -1,4 +1,4 @@
-﻿var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddConfigurationFiles();
 
@@ -26,4 +26,7 @@ app.Services.SetupScheduling(zileanConfiguration);
 app.Run();
 
 // Make Program accessible to WebApplicationFactory in test project
+/// <summary>
+/// The entry-point partial class for the ApiService, made accessible to <c>WebApplicationFactory</c> in the test project.
+/// </summary>
 public partial class Program;

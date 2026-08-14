@@ -175,6 +175,11 @@ public static class PredicateBuilder
     /// <summary>
     /// Checks if a string property/field ends with a specific substring.
     /// </summary>
+    /// <typeparam name="T">The type of the object containing the property/field.</typeparam>
+    /// <param name="selector">Expression that selects the string property/field to check.</param>
+    /// <param name="substring">The substring to check for at the end of the string property/field.</param>
+    /// <returns>An expression representing the condition if the string property/field ends
+    /// with the specified substring.</returns>
     public static Expression<Func<T, bool>> EndsWith<T>(this Expression<Func<T, string>> selector, string substring)
     {
         var method = typeof(string).GetMethod("EndsWith", new[] { typeof(string) }) ?? throw new ArgumentNullException("typeof(string).GetMethod(\"EndsWith\", new[] { typeof(string) })");
@@ -432,7 +437,12 @@ public static class PredicateBuilder
         var body = Expression.NotEqual(selector1.Body, selector2.Body);
         return Expression.Lambda<Func<T, bool>>(body, selector1.Parameters);
     }
-
+    /// <summary>
+    /// Converts a predicate expression into a human-readable string representation.
+    /// </summary>
+    /// <typeparam name="T">The type of the object being evaluated by the expression.</typeparam>
+    /// <param name="expression">The predicate expression to render.</param>
+    /// <returns>A string representation of the expression tree.</returns>
     public static string ToReadableString<T>(this Expression<Func<T, bool>> expression) =>
         new ExpressionStringBuilder().Visit(expression).ToString();
 }

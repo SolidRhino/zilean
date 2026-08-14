@@ -1,11 +1,21 @@
 namespace Zilean.Scraper.Features.Imdb;
 
+/// <summary>
+/// Downloads IMDb metadata files (title.basics.tsv) from the IMDb datasets endpoint.
+/// </summary>
+/// <param name="logger">The logger for diagnostic output.</param>
 public class ImdbFileDownloader(ILogger<ImdbFileDownloader> logger)
 {
     private static readonly string _dataFilePath = Path.Combine(AppContext.BaseDirectory, "data", TitleBasicsFileName);
     private const string TitleBasicsFileName = "title.basics.tsv";
     private const string ImdbDataBaseAddress = "https://datasets.imdbws.com/";
 
+    /// <summary>
+    /// Downloads the IMDb title.basics.tsv metadata file, reusing a cached copy
+    /// if it is less than 30 days old.
+    /// </summary>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>The path to the downloaded or cached metadata file.</returns>
     public async Task<string> DownloadMetadataFile(CancellationToken cancellationToken) =>
         await DownloadFileToTempPath(TitleBasicsFileName, cancellationToken);
 

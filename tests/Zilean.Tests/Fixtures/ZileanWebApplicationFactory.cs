@@ -6,22 +6,45 @@ using Zilean.Shared.Features.Python;
 
 namespace Zilean.Tests.Fixtures;
 
+/// <summary>
+/// In-process <see cref="WebApplicationFactory{Program}"/> that hosts the Zilean API
+/// with a testing configuration: disables scraping/ingestion, enables dmm/torznab/torrents/imdb
+/// endpoints, injects the test Postgres connection string, sets dummy Python env vars to prevent
+/// <see cref="PythonRuntimeService"/> from calling <c>Environment.Exit</c>, and removes
+/// <see cref="Zilean.ApiService.Features.Bootstrapping.ConfigurationUpdaterService"/> so it
+/// does not write config files to disk during tests. Migrations still run via
+/// <see cref="Zilean.ApiService.Features.Bootstrapping.StartupService"/>.
+/// </summary>
 public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
     private readonly bool _enableDashboard;
     private readonly Dictionary<string, string?> _envVars = [];
 
+    /// <summary>
+    /// Creates a factory with the given connection string and dashboard disabled.
+    /// </summary>
+    /// <param name="connectionString">The Postgres connection string to inject.</param>
     public ZileanWebApplicationFactory(string connectionString) : this(connectionString, enableDashboard: false)
     {
     }
 
+    /// <summary>
+    /// Creates a factory with the given connection string and optional dashboard support.
+    /// </summary>
+    /// <param name="connectionString">The Postgres connection string to inject.</param>
+    /// <param name="enableDashboard">Whether to enable the Blazor dashboard.</param>
     public ZileanWebApplicationFactory(string connectionString, bool enableDashboard)
     {
         _connectionString = connectionString;
         _enableDashboard = enableDashboard;
     }
 
+    /// <summary>
+    /// Configures the test host: sets env vars, switches to the "Testing" environment,
+    /// injects in-memory config overrides, and removes <see cref="Zilean.ApiService.Features.Bootstrapping.ConfigurationUpdaterService"/>.
+    /// </summary>
+    /// <param name="builder">The web host builder.</param>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Set dummy Python env vars to prevent Environment.Exit in PythonRuntimeService
@@ -76,6 +99,7 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
     /// resolving the running app's configured API key from DI. Mirrors the key-resolution
     /// pattern used by DashboardAuthTests so tests can hit protected endpoints.
     /// </summary>
+    /// <returns>An <see cref="HttpClient"/> authenticated with the app's API key.</returns>
     public HttpClient CreateAuthenticatedClient()
     {
         var client = CreateClient();
@@ -94,6 +118,10 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable(key, value);
     }
 
+    /// <summary>
+    /// Restores env vars to their pre-test values, then disposes the factory.
+    /// </summary>
+    /// <param name="disposing">Whether to dispose managed resources.</param>
     protected override void Dispose(bool disposing)
     {
         foreach (var (key, originalValue) in _envVars)

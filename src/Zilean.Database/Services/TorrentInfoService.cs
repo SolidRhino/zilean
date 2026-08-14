@@ -1,8 +1,13 @@
 namespace Zilean.Database.Services;
 
+/// <summary>
+/// Default implementation of <see cref="ITorrentInfoService"/> for searching and storing
+/// torrent info entries using EF Core and <see cref="IImdbMatchingService"/>.
+/// </summary>
 public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfiguration configuration, IDbContextFactory<ZileanDbContext> dbContextFactory, IImdbMatchingService imdbMatchingService)
     : ITorrentInfoService
 {
+    /// <inheritdoc/>
     public async Task VaccumTorrentsIndexes(CancellationToken cancellationToken)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -10,6 +15,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         await dbContext.Database.ExecuteSqlRawAsync("VACUUM (VERBOSE, ANALYZE) \"Torrents\"", cancellationToken: cancellationToken);
     }
 
+    /// <inheritdoc/>
     public async Task<StoreResult> StoreTorrentInfo(List<TorrentInfo> torrents, int batchSize = 5000)
     {
         if (torrents.Count == 0)
@@ -77,6 +83,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         return new StoreResult(Stored: torrents.Count, PopulateMs: populateMs, MatchMs: matchMs, UpsertMs: upsertMs);
     }
 
+    /// <inheritdoc/>
     public async Task<TorrentInfo[]> SearchForTorrentInfoByOnlyTitle(string query)
     {
         var cleanQuery = Parsing.CleanQuery(query);
@@ -97,6 +104,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         return results;
     }
 
+    /// <inheritdoc/>
     public async Task<TorrentInfo[]> SearchForTorrentInfoFiltered(TorrentInfoFilter filter, int? limit = null)
     {
         var (queryWithoutYear, extractedYear) = Parsing.ExtractTrailingYear(filter.Query);
@@ -171,6 +179,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
             return torrentInfo;
         };
 
+    /// <inheritdoc/>
     public async Task<HashSet<string>> GetExistingInfoHashesAsync(List<string> infoHashes)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
@@ -183,6 +192,7 @@ public class TorrentInfoService(ILogger<TorrentInfoService> logger, ZileanConfig
         return [..existingHashes];
     }
 
+    /// <inheritdoc/>
     public async Task<HashSet<string>> GetBlacklistedItems()
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();

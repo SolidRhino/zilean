@@ -2,12 +2,20 @@ using Npgsql;
 
 namespace Zilean.ApiService.Features.HealthChecks;
 
+/// <summary>
+/// Provides extension methods for mapping health check endpoints.
+/// </summary>
 public static class HealthCheckEndpoints
 {
     private const string GroupName = "healthchecks";
     private const string Ping = "/ping";
     private const string Ready = "/ready";
 
+    /// <summary>
+    /// Maps the health check endpoints (<c>/ping</c>, <c>/ready</c>).
+    /// </summary>
+    /// <param name="app">The web application.</param>
+    /// <returns>The web application with endpoints mapped.</returns>
     public static WebApplication MapHealthCheckEndpoints(this WebApplication app)
     {
         app.MapGroup(GroupName)

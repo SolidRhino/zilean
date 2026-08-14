@@ -1,5 +1,8 @@
 namespace Zilean.Shared.Features.Python;
 
+/// <summary>
+/// Manages the lifecycle of the embedded CPython 3.12 runtime used for RTN torrent-title parsing.
+/// </summary>
 public class PythonRuntimeService
 {
     private readonly Task _initAsync;
@@ -9,15 +12,30 @@ public class PythonRuntimeService
     private dynamic? _sys;
     private readonly ILogger<PythonRuntimeService> _logger;
 
+    /// <summary>
+    /// Gets the task that completes when the Python engine has finished initializing.
+    /// </summary>
     public Task Initialization => _initAsync;
+
+    /// <summary>
+    /// Gets a value indicating whether the Python engine initialized successfully and is ready for use.
+    /// </summary>
     public bool IsAvailable => _initAsync.IsCompletedSuccessfully;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PythonRuntimeService"/> class and begins engine initialization.
+    /// </summary>
+    /// <param name="logger">The logger for diagnostics and initialization failures.</param>
+    /// <param name="configuration">The Zilean configuration (unused at present but reserved for future options).</param>
     public PythonRuntimeService(ILogger<PythonRuntimeService> logger, ZileanConfiguration configuration)
     {
         _logger = logger;
         _initAsync = InitializePythonEngine();
     }
 
+    /// <summary>
+    /// Shuts down the embedded Python engine and releases acquired resources.
+    /// </summary>
     public async Task StopPythonEngine()
     {
         if (!IsAvailable)
