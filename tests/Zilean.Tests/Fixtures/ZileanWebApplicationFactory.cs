@@ -9,10 +9,10 @@ namespace Zilean.Tests.Fixtures;
 /// <summary>
 /// In-process <see cref="WebApplicationFactory{Program}"/> that hosts the Zilean API
 /// with a testing configuration: disables scraping/ingestion, enables dmm/torznab/torrents/imdb
-/// endpoints, injects the test Postgres connection string, sets dummy Python env vars to prevent
-/// <see cref="PythonRuntimeService"/> from calling <c>Environment.Exit</c>, and removes
-/// <see cref="Zilean.ApiService.Features.Bootstrapping.ConfigurationUpdaterService"/> so it
-/// does not write config files to disk during tests. Migrations still run via
+/// endpoints, injects the test Postgres connection string, sets <c>ZILEAN_PYTHON_PYLIB</c> to
+/// empty so <see cref="PythonRuntimeService"/> faults cleanly (no native DLL load attempt),
+/// and removes <see cref="Zilean.ApiService.Features.Bootstrapping.ConfigurationUpdaterService"/>
+/// so it does not write config files to disk during tests. Migrations still run via
 /// <see cref="Zilean.ApiService.Features.Bootstrapping.StartupService"/>.
 /// </summary>
 public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
@@ -47,9 +47,12 @@ public class ZileanWebApplicationFactory : WebApplicationFactory<Program>
     /// <param name="builder">The web host builder.</param>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Set dummy Python env vars to prevent Environment.Exit in PythonRuntimeService
-        SetEnvVar("ZILEAN_PYTHON_PYLIB", "/dummy/libpython3.so");
-        SetEnvVar("ZILEAN_PYTHON_VENV", "/dummy/venv");
+        // Set ZILEAN_PYTHON_PYLIB to empty so PythonRuntimeService.InitializePythonEngine
+        // returns a faulted Task (InvalidOperationException) without attempting a native
+        // DLL load that would log a scary DllNotFoundException. The runtime's IsAvailable
+        // property returns false, and all API endpoints gracefully degrade without Python.
+        SetEnvVar("ZILEAN_PYTHON_PYLIB", "");
+        SetEnvVar("ZILEAN_PYTHON_VENV", "");
 
         // DatabaseConfiguration constructor reads this env var directly, bypassing config binding.
         SetEnvVar("Zilean__Database__ConnectionString", _connectionString);
