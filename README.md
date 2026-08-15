@@ -4,9 +4,9 @@
 
 > **Status: No longer actively maintained.**
 >
-> This fork is **50 commits ahead** of upstream ([`iPromKnight/zilean`](https://github.com/iPromKnight/zilean) v3.5.0, last upstream commit May 2025) and contains the bug fixes and improvements listed below: flexible DB config, incremental DMM sync, health checks, books and audiobooks support, observability and log gating, IMDB match cache, search-q-year extraction, and more.
+> This fork (`SolidRhino/zilean`) tracks upstream [`Thoroslives/zilean`](https://github.com/Thoroslives/zilean) and is **14 commits ahead** of upstream's last commit. It contains bug fixes and improvements: GiST KNN trigram search, flexible DB config, incremental DMM sync, health checks, books and audiobooks support, observability and log gating, IMDB match cache, search-q-year extraction, XML doc enforcement, and more.
 >
-> The published image (`ghcr.io/thoroslives/zilean:v3.10.1`, also `:latest`) is the last stable build and remains usable. No new feature work is planned. Issues will be triaged best-effort. PRs welcome from anyone willing to take the fork forward.
+> The published image (`ghcr.io/solidrhino/zilean:latest`, currently `v3.10.12`) is the latest stable build. Issues will be triaged best-effort. PRs welcome.
 >
 > If you'd like to take over active maintenance, open an issue and let's talk.
 
@@ -14,23 +14,30 @@ Zilean is a Torznab indexer for [DebridMediaManager](https://github.com/debridme
 It supports films, TV, books, and audiobooks through a single Torznab API, and can be configured as an indexer in Prowlarr, Sonarr, Radarr, Shelfarr, and other *arr applications.
 It can also scrape from your running Zurg instance and from other running Zilean instances.
 
-Upstream documentation: [https://ipromknight.github.io/zilean/](https://ipromknight.github.io/zilean/)
-
 ## Requirements
 
-Zilean requires only **PostgreSQL 16+**. Elasticsearch is **NOT** required and was removed in v2.0.
+Zilean requires only **PostgreSQL 16+** with the `pg_trgm` and `unaccent` extensions. Elasticsearch is **NOT** required and was removed in v2.0.
 
 ## Docker Image
 
 ```
-ghcr.io/thoroslives/zilean:latest
+ghcr.io/solidrhino/zilean:latest
 ```
 
 ## Fork Changes
 
-This fork includes improvements to reliability, search quality, security, and media type support over upstream v3.5.0. Key additions include book/audiobook category detection, graceful degradation, incremental DMM sync, and flexible database configuration.
+This fork includes improvements to reliability, search quality, security, and media type support over upstream. Key additions include:
 
-See [Releases](https://github.com/Thoroslives/zilean/releases) for the full changelog.
+- **GiST KNN trigram search** — two-stage `ORDER BY ... <-> query FETCH FIRST N ROWS WITH TIES` + outer re-sort for relevance-ordered results
+- **Book/audiobook category detection** — post-RTN heuristics via file extension and title keywords
+- **Graceful degradation** — API continues serving when Python runtime is unavailable
+- **Incremental DMM sync** — resumable; picks up where interrupted on next startup
+- **Flexible database configuration** — full connection string, individual env vars, or defaults
+- **XML doc enforcement** — `CS1591` set to `warning`; all public members documented across the solution
+- **Dashboard** — Blazor + Syncfusion dashboard with cookie-based auth
+- **API key authentication** — `X-API-KEY` header for protected endpoints
+
+See [Releases](https://github.com/SolidRhino/zilean/releases) for the full changelog.
 
 ## Configuration
 
@@ -159,7 +166,7 @@ Set `shm_size: 256m` on your PostgreSQL container. See the docker-compose exampl
 ```yaml
 services:
   zilean:
-    image: ghcr.io/thoroslives/zilean:latest
+    image: ghcr.io/solidrhino/zilean:latest
     container_name: zilean
     restart: unless-stopped
     ports:
