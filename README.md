@@ -2,13 +2,9 @@
 
 <img src="docs/Writerside/images/zilean-logo.jpg" alt="zilean logo" width="300" height="300">
 
-> **Status: No longer actively maintained.**
->
 > This fork (`SolidRhino/zilean`) tracks upstream [`Thoroslives/zilean`](https://github.com/Thoroslives/zilean) and is **14 commits ahead** of upstream's last commit. It contains bug fixes and improvements: GiST KNN trigram search, flexible DB config, incremental DMM sync, health checks, books and audiobooks support, observability and log gating, IMDB match cache, search-q-year extraction, XML doc enforcement, and more.
 >
-> The published image (`ghcr.io/solidrhino/zilean:latest`, currently `v3.10.12`) is the latest stable build. Issues will be triaged best-effort. PRs welcome.
->
-> If you'd like to take over active maintenance, open an issue and let's talk.
+> The published image (`ghcr.io/solidrhino/zilean:latest`, currently `v3.10.12`) is the latest stable build. PRs welcome.
 
 Zilean is a Torznab indexer for [DebridMediaManager](https://github.com/debridmediamanager/debrid-media-manager) sourced content shared by users.
 It supports films, TV, books, and audiobooks through a single Torznab API, and can be configured as an indexer in Prowlarr, Sonarr, Radarr, Shelfarr, and other *arr applications.

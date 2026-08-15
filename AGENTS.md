@@ -6,7 +6,7 @@
 
 Zilean is a **Torznab indexer** for [DebridMediaManager](https://github.com/debridmediamanager/debrid-media-manager) (DMM) sourced content shared by users. It exposes a single Torznab API consumable by Prowlarr, Sonarr, Radarr, Shelfarr, and other *arr apps, and can also scrape from a running Zurg instance or other Zilean instances.
 
-- **Fork**: `SolidRhino/zilean`, tracking upstream [`Thoroslives/zilean`](https://github.com/Thoroslives/zilean). Status: **no longer actively maintained**. Published image `ghcr.io/solidrhino/zilean:latest`. Branch `main` is protected by a ruleset (`protect-main`): direct pushes blocked, PRs require `Conventional Commits` + `build-and-test` checks to pass, no bypass.
+- **Fork**: `SolidRhino/zilean`, tracking upstream [`Thoroslives/zilean`](https://github.com/Thoroslives/zilean). Published image `ghcr.io/solidrhino/zilean:latest`. Branch `main` is protected by a ruleset (`protect-main`): direct pushes blocked, PRs require `Conventional Commits` + `build-and-test` checks to pass, no bypass.
 - **Stack**: .NET 9 (ASP.NET Core + EF Core 9), PostgreSQL 16+ with `pg_trgm` + `unaccent` (Elasticsearch was removed in v2.0). Python 3.12 embedded via pythonnet for RTN parsing.
 - **Categories**: Movies `2000`, TV `5000`, Books `7000`, Audiobooks `3030`, XXX `6000`. Books/audiobooks detected by post-RTN heuristics (extension + title keywords).
 
