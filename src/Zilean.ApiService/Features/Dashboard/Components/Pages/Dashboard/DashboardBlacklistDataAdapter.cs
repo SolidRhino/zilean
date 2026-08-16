@@ -6,7 +6,8 @@ namespace Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard;
 /// <see cref="BlacklistedItem"/> records.
 /// </summary>
 /// <param name="dbContextFactory">Factory for creating scoped <see cref="ZileanDbContext"/> instances.</param>
-public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> dbContextFactory) : DataAdaptor
+/// <param name="logger">Logger for recording data operation failures.</param>
+public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> dbContextFactory, ILogger<DashboardBlacklistDataAdapter> logger) : DataAdaptor
 {
     /// <summary>
     /// Reads blacklisted item records from the database applying the Syncfusion data manager
@@ -17,58 +18,66 @@ public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> db
     /// <returns>The queried result set, or a <see cref="DataResult"/> with count when counts are requested.</returns>
     public override async Task<object> ReadAsync(DataManagerRequest dataManagerRequest, string? key = null)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-
-        var dataSource = dbContext
-            .BlacklistedItems
-            .AsNoTracking()
-            .OrderByDescending(x => x.BlacklistedAt)
-            .AsQueryable();
-
-        if (dataManagerRequest.Search is { Count: > 0 })
+        try
         {
-            dataSource = DataOperations.PerformSearching(dataSource, dataManagerRequest.Search);
-        }
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
-        if (dataManagerRequest.Where is { Count: > 0 })
-        {
-            dataSource = DataOperations.PerformFiltering(dataSource, dataManagerRequest.Where,
-                dataManagerRequest.Where[0].Operator);
-        }
+            var dataSource = dbContext
+                .BlacklistedItems
+                .AsNoTracking()
+                .OrderByDescending(x => x.BlacklistedAt)
+                .AsQueryable();
 
-        if (dataManagerRequest.Sorted is { Count: > 0 })
-        {
-            dataSource = DataOperations.PerformSorting(dataSource, dataManagerRequest.Sorted);
-        }
-
-        var count = dataSource.Count();
-
-        if (dataManagerRequest.Skip != 0)
-        {
-            dataSource = DataOperations.PerformSkip(dataSource, dataManagerRequest.Skip);
-        }
-
-        if (dataManagerRequest.Take != 0)
-        {
-            dataSource = DataOperations.PerformTake(dataSource, dataManagerRequest.Take);
-        }
-
-        var items = await dataSource
-            .Select(x => new BlacklistItemDetails
+            if (dataManagerRequest.Search is { Count: > 0 })
             {
-                InfoHash = x.InfoHash,
-                Reason = x.Reason,
-                BlacklistedAt = x.BlacklistedAt,
-            })
-            .ToListAsync();
+                dataSource = DataOperations.PerformSearching(dataSource, dataManagerRequest.Search);
+            }
 
-        return !dataManagerRequest.RequiresCounts
-            ? items
-            : new DataResult
+            if (dataManagerRequest.Where is { Count: > 0 })
             {
-                Result = items,
-                Count = count,
-            };
+                dataSource = DataOperations.PerformFiltering(dataSource, dataManagerRequest.Where,
+                    dataManagerRequest.Where[0].Operator);
+            }
+
+            if (dataManagerRequest.Sorted is { Count: > 0 })
+            {
+                dataSource = DataOperations.PerformSorting(dataSource, dataManagerRequest.Sorted);
+            }
+
+            var count = dataSource.Count();
+
+            if (dataManagerRequest.Skip != 0)
+            {
+                dataSource = DataOperations.PerformSkip(dataSource, dataManagerRequest.Skip);
+            }
+
+            if (dataManagerRequest.Take != 0)
+            {
+                dataSource = DataOperations.PerformTake(dataSource, dataManagerRequest.Take);
+            }
+
+            var items = await dataSource
+                .Select(x => new BlacklistItemDetails
+                {
+                    InfoHash = x.InfoHash,
+                    Reason = x.Reason,
+                    BlacklistedAt = x.BlacklistedAt,
+                })
+                .ToListAsync();
+
+            return !dataManagerRequest.RequiresCounts
+                ? items
+                : new DataResult
+                {
+                    Result = items,
+                    Count = count,
+                };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error reading blacklist data");
+            throw;
+        }
     }
 
     /// <summary>
@@ -81,18 +90,26 @@ public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> db
     /// <returns>The removed value.</returns>
     public override async Task<object> RemoveAsync(DataManager dataManager, object? value, string keyField, string key)
     {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-
-        if (value is string infoHash)
+        try
         {
-            var item = await dbContext.BlacklistedItems.FirstOrDefaultAsync(x => x.InfoHash == infoHash);
-            if (item != null)
-            {
-                dbContext.BlacklistedItems.Remove(item);
-                await dbContext.SaveChangesAsync();
-            }
-        }
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
 
-        return value;
+            if (value is string infoHash)
+            {
+                var item = await dbContext.BlacklistedItems.FirstOrDefaultAsync(x => x.InfoHash == infoHash);
+                if (item != null)
+                {
+                    dbContext.BlacklistedItems.Remove(item);
+                    await dbContext.SaveChangesAsync();
+                }
+            }
+
+            return value;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing blacklist data");
+            throw;
+        }
     }
 }

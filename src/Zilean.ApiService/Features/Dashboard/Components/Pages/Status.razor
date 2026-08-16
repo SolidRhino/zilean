@@ -130,6 +130,7 @@
     [Inject] IImdbFileService ImdbFileService { get; set; } = default!;
     [Inject] SyncOnDemandState SyncState { get; set; } = default!;
     [Inject] PythonRuntimeService PythonRuntime { get; set; } = default!;
+    [Inject] ILogger<Status> _logger { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -148,6 +149,10 @@
                 }
             }
             catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Status auto-refresh failed");
+            }
         });
     }
 
@@ -172,10 +177,11 @@
 
             _status = _pythonAvailable == false ? "degraded" : "healthy";
         }
-        catch
+        catch (Exception ex)
         {
             _databaseHealthy = false;
             _status = "unhealthy";
+            _logger.LogWarning(ex, "Status data load failed");
         }
 
         _loading = false;

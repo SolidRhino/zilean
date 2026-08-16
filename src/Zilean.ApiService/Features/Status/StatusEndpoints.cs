@@ -49,7 +49,7 @@ public static class StatusEndpoints
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Database health check failed");
+            logger.LogWarning("Database health check failed: {Message}", ex.Message);
         }
 
         long torrentCount = 0;
@@ -59,7 +59,7 @@ public static class StatusEndpoints
         DmmLastImport? dmmLastImport = null;
         ImdbLastImport? imdbLastImport = null;
         bool isSyncRunning = false;
-        bool? pythonAvailable = null;
+        bool? pythonAvailable;
 
         if (databaseHealthy)
         {
@@ -81,11 +81,8 @@ public static class StatusEndpoints
             isSyncRunning = syncState?.IsRunning ?? false;
         }
 
-        if (configuration.EnableDashboard)
-        {
-            var ptn = serviceProvider.GetService<PythonRuntimeService>();
-            pythonAvailable = ptn?.IsAvailable ?? false;
-        }
+        var ptn = serviceProvider.GetService<PythonRuntimeService>();
+        pythonAvailable = ptn?.IsAvailable;
 
         var status = !databaseHealthy ? "unhealthy" : pythonAvailable == false ? "degraded" : "healthy";
         var statusCode = databaseHealthy ? 200 : 503;
