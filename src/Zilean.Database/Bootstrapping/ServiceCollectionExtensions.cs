@@ -20,6 +20,7 @@ public static class ServiceCollectionExtensions
         services.RegisterImdbMatchingService(configuration);
         services.AddTransient<IBlacklistService, BlacklistService>();
         services.AddTransient<ITorrentsQueryService, TorrentsQueryService>();
+        services.AddTransient<DmmService>();
 
         return services;
     }

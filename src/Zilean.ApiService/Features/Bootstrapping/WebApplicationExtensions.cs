@@ -50,6 +50,7 @@ public static class WebApplicationExtensions
             .MapTorznabEndpoints(configuration)
             .MapTorrentsEndpoints(configuration)
             .MapBlacklistEndpoints()
+            .MapStatusEndpoints()
             .MapHealthCheckEndpoints();
 
         if (configuration.EnableDashboard)

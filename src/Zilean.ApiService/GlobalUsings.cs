@@ -39,6 +39,7 @@ global using Zilean.ApiService.Features.HealthChecks;
 global using Zilean.ApiService.Features.Imdb;
 global using Zilean.ApiService.Features.Search;
 global using Zilean.ApiService.Features.Sync;
+global using Zilean.ApiService.Features.Status;
 global using Zilean.ApiService.Features.Torrents;
 global using Zilean.ApiService.Features.Torznab;
 global using Zilean.Database;

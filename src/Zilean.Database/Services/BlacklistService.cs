@@ -71,4 +71,11 @@ public class BlacklistService(IDbContextFactory<ZileanDbContext> dbContextFactor
 
         return BlacklistResult.Removed;
     }
+
+    /// <inheritdoc/>
+    public async Task<List<BlacklistedItem>> ListAsync(CancellationToken ct)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(ct);
+        return await dbContext.BlacklistedItems.AsNoTracking().OrderByDescending(x => x.BlacklistedAt).ToListAsync(ct);
+    }
 }

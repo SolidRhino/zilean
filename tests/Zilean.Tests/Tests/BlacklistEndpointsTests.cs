@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Zilean.Tests.Tests;
 
@@ -155,5 +157,27 @@ public class BlacklistEndpointsTests(PostgresLifecycleFixture fixture)
         var removeAgainResponse = await client.DeleteAsync($"/blacklist/remove?infoHash={hash}");
         removeAgainResponse.StatusCode.Should().Be(HttpStatusCode.NotFound,
             "because removing the same hash again after removal must return 404");
+    }
+
+    [Fact]
+    public async Task ListBlacklist_Returns200_WithItems()
+    {
+        var client = fixture.Factory.CreateAuthenticatedClient();
+
+        // Add a test item first
+        var addResponse = await client.PutAsync($"/blacklist/add?info_hash=list-test-hash-001&reason=test%20reason", null!);
+        addResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // List
+        var listResponse = await client.GetAsync("/blacklist/list");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var items = await listResponse.Content.ReadFromJsonAsync<JsonElement[]>();
+        items.Should().NotBeEmpty();
+        var testItem = items.FirstOrDefault(i => i.GetProperty("info_hash").GetString() == "list-test-hash-001");
+        testItem.Should().NotBeNull();
+        testItem!.GetProperty("reason").GetString().Should().Be("test reason");
+
+        // Cleanup
+        await client.DeleteAsync("/blacklist/remove?infoHash=list-test-hash-001");
     }
 }

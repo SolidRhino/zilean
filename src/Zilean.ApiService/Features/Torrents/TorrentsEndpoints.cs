@@ -8,6 +8,7 @@ public static class TorrentsEndpoints
     private const string GroupName = "torrents";
     private const string Scrape = "/all";
     private const string CheckCached = "/checkcached";
+    private const string Lookup = "/{infoHash}";
     private const string NoHashesProvidedError = "No hashes provided";
     private const string TooManyHashesError = "Too many hashes provided. The limit is {0}.";
 
@@ -49,6 +50,9 @@ public static class TorrentsEndpoints
                 .Produces<BadRequest<ErrorResponse>>();
         }
 
+        group.MapGet(Lookup, GetTorrentByHash)
+            .Produces<TorrentInfo>()
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         return group;
     }
 
@@ -116,6 +120,32 @@ public static class TorrentsEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "Error while streaming torrents to client: {Client}", context.Connection.RemoteIpAddress);
+        }
+    }
+
+    private static async Task<IResult> GetTorrentByHash(string infoHash, ITorrentsQueryService torrentsQueryService, HttpContext context, ILogger<CheckCachedLogger> logger)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(infoHash))
+            {
+                return Results.BadRequest(new ErrorResponse("InfoHash is required"));
+            }
+
+            var torrent = await torrentsQueryService.GetByInfoHashAsync(infoHash, context.RequestAborted);
+
+            return torrent is null
+                ? Results.NotFound(new ErrorResponse($"Torrent with info hash '{infoHash}' not found."))
+                : Results.Ok(torrent);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "An error occurred while looking up torrent {InfoHash}", infoHash);
+            return Results.Problem(e.Message);
         }
     }
 

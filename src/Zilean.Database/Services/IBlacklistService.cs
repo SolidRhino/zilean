@@ -21,6 +21,13 @@ public interface IBlacklistService
     /// <param name="ct">Token to cancel the operation.</param>
     /// <returns>A <see cref="BlacklistResult"/> indicating the outcome.</returns>
     Task<BlacklistResult> RemoveAsync(string infoHash, CancellationToken ct);
+
+    /// <summary>
+    /// Retrieves all blacklisted items.
+    /// </summary>
+    /// <param name="ct">Token to cancel the operation.</param>
+    /// <returns>A list of all <see cref="BlacklistedItem"/> entries.</returns>
+    Task<List<BlacklistedItem>> ListAsync(CancellationToken ct);
 }
 
 /// <summary>
