@@ -20,4 +20,12 @@ public interface ITorrentsQueryService
     /// <param name="ct">Token to cancel the enumeration.</param>
     /// <returns>An async enumerable of <see cref="StreamedEntry"/> entries.</returns>
     IAsyncEnumerable<StreamedEntry> StreamAllAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Retrieves a single torrent by its info hash.
+    /// </summary>
+    /// <param name="infoHash">The info hash to look up.</param>
+    /// <param name="ct">Token to cancel the operation.</param>
+    /// <returns>The matching <see cref="TorrentInfo"/>, or <c>null</c> if not found.</returns>
+    Task<TorrentInfo?> GetByInfoHashAsync(string infoHash, CancellationToken ct);
 }

@@ -1,0 +1,77 @@
+@page "/lookup"
+@rendermode InteractiveServer
+@using Syncfusion.Blazor.Inputs
+@using Syncfusion.Blazor.Buttons
+@using Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3>Torrent Lookup</h3>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <SfTextBox @bind-Value="_infoHash" Placeholder="Enter info hash (e.g. aabbccdd00112233...)" FloatLabelType="FloatLabelType.Always" ShowClearButton="true"></SfTextBox>
+        </div>
+        <div class="col-md-2">
+            <SfButton Content="Search" OnClick="SearchAsync"></SfButton>
+        </div>
+    </div>
+
+    @if (_searched)
+    {
+        if (_result is null)
+        {
+            <div class="row">
+                <div class="col-12">
+                    <div class="alert alert-warning">No torrent found with info hash '@_infoHash'.</div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="row">
+                <div class="col-12">
+                    <table class="table table-striped">
+                        <tbody>
+                            <tr><th>Info Hash</th><td>@_result.InfoHash</td></tr>
+                            <tr><th>Raw Title</th><td>@_result.RawTitle</td></tr>
+                            <tr><th>Parsed Title</th><td>@_result.ParsedTitle</td></tr>
+                            <tr><th>Category</th><td>@_result.Category</td></tr>
+                            <tr><th>Year</th><td>@_result.Year</td></tr>
+                            <tr><th>Size</th><td>@_result.Size</td></tr>
+                            <tr><th>IMDb ID</th><td>@_result.ImdbId</td></tr>
+                            <tr><th>Adult</th><td>@_result.IsAdult</td></tr>
+                            <tr><th>Trash</th><td>@_result.Trash</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string _infoHash = string.Empty;
+    private bool _searched;
+    private DashboardTorrentDetails? _result;
+
+    [Inject] IDbContextFactory<ZileanDbContext> DbContextFactory { get; set; } = default!;
+
+    private async Task SearchAsync()
+    {
+        _searched = false;
+
+        if (string.IsNullOrWhiteSpace(_infoHash))
+        {
+            return;
+        }
+
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var torrent = await dbContext.Torrents.AsNoTracking().FirstOrDefaultAsync(t => t.InfoHash == _infoHash.Trim());
+
+        _result = torrent is null ? null : DashboardTorrentDetails.FromTorrentInfo(torrent);
+        _searched = true;
+    }
+}

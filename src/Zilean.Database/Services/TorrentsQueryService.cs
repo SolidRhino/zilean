@@ -71,4 +71,11 @@ public class TorrentsQueryService(IDbContextFactory<ZileanDbContext> dbContextFa
             };
         }
     }
+
+    /// <inheritdoc/>
+    public async Task<TorrentInfo?> GetByInfoHashAsync(string infoHash, CancellationToken ct)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(ct);
+        return await dbContext.Torrents.AsNoTracking().FirstOrDefaultAsync(t => t.InfoHash == infoHash, ct);
+    }
 }

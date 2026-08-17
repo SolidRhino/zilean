@@ -1,0 +1,205 @@
+@page "/dashboard/status"
+@rendermode InteractiveServer
+@using Zilean.Shared.Features.Statistics
+@implements IAsyncDisposable
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3>Status</h3>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Overall Status</div>
+                    <div class="card-body"><span class="badge @GetStatusBadgeClass(_status)">@_status</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Database</div>
+                    <div class="card-body">@(_databaseHealthy ? "Connected" : "Unreachable")</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Python Runtime</div>
+                    <div class="card-body">@(_pythonAvailable?.ToString() ?? "N/A")</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Sync Running</div>
+                    <div class="card-body">@(_isSyncRunning ? "Yes" : "No")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Torrents</div>
+                    <div class="card-body">@_torrentCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">IMDb Files</div>
+                    <div class="card-body">@_imdbFileCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Blacklisted</div>
+                    <div class="card-body">@_blacklistedCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Parsed Pages</div>
+                    <div class="card-body">@_parsedPagesCount.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">DMM Last Import</div>
+                    <div class="card-body">
+                        @if (_dmmLastImport != null)
+                        {
+                            <p>Status: @_dmmLastImport.Status</p>
+                            <p>Occurred: @(_dmmLastImport.OccuredAt.ToString("yyyy-MM-dd HH:mm:ss UTC"))</p>
+                            <p>Pages: @_dmmLastImport.PageCount.ToString("N0")</p>
+                            <p>Entries: @_dmmLastImport.EntryCount.ToString("N0")</p>
+                        }
+                        else
+                        {
+                            <p>No import recorded</p>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">IMDb Last Import</div>
+                    <div class="card-body">
+                        @if (_imdbLastImport != null)
+                        {
+                            <p>Status: @_imdbLastImport.Status</p>
+                            <p>Occurred: @(_imdbLastImport.OccuredAt.ToString("yyyy-MM-dd HH:mm:ss UTC"))</p>
+                            <p>Entries: @_imdbLastImport.EntryCount.ToString("N0")</p>
+                        }
+                        else
+                        {
+                            <p>No import recorded</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private string _status = "unknown";
+    private bool _databaseHealthy;
+    private bool? _pythonAvailable;
+    private bool _isSyncRunning;
+    private long _torrentCount;
+    private long _imdbFileCount;
+    private long _blacklistedCount;
+    private long _parsedPagesCount;
+    private DmmLastImport? _dmmLastImport;
+    private ImdbLastImport? _imdbLastImport;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    [Inject] IDbContextFactory<ZileanDbContext> DbContextFactory { get; set; } = default!;
+    [Inject] DmmService DmmService { get; set; } = default!;
+    [Inject] IImdbFileService ImdbFileService { get; set; } = default!;
+    [Inject] SyncOnDemandState SyncState { get; set; } = default!;
+    [Inject] PythonRuntimeService PythonRuntime { get; set; } = default!;
+    [Inject] ILogger<Status> _logger { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+
+        await LoadStatusAsync();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (await _timer.WaitForNextTickAsync(_cts.Token))
+                {
+                    await InvokeAsync(async () => await LoadStatusAsync());
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Status auto-refresh failed");
+            }
+        });
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            _databaseHealthy = true;
+
+            _torrentCount = await dbContext.Torrents.AsNoTracking().LongCountAsync();
+            _imdbFileCount = await dbContext.ImdbFiles.AsNoTracking().LongCountAsync();
+            _blacklistedCount = await dbContext.BlacklistedItems.AsNoTracking().LongCountAsync();
+            _parsedPagesCount = await dbContext.ParsedPages.AsNoTracking().LongCountAsync();
+
+            _dmmLastImport = await DmmService.GetDmmLastImportAsync(default);
+            _imdbLastImport = await ImdbFileService.GetImdbLastImportAsync(default);
+            _isSyncRunning = SyncState.IsRunning;
+            _pythonAvailable = PythonRuntime.IsAvailable;
+
+            _status = _pythonAvailable == false ? "degraded" : "healthy";
+        }
+        catch (Exception ex)
+        {
+            _databaseHealthy = false;
+            _status = "unhealthy";
+            _logger.LogWarning(ex, "Status data load failed");
+        }
+
+        _loading = false;
+    }
+
+    private static string GetStatusBadgeClass(string status) => status switch
+    {
+        "healthy" => "bg-success",
+        "degraded" => "bg-warning",
+        "unhealthy" => "bg-danger",
+        _ => "bg-secondary",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _timer?.Dispose();
+        await Task.CompletedTask;
+    }
+}

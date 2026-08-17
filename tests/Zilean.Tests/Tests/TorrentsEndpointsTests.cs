@@ -154,4 +154,23 @@ public class TorrentsEndpointsTests
         matrix.GetProperty("size").GetInt64().Should().Be(15,
             "because the seed Size '15.5 GB' is parsed via leading digits to 15, proving the TryParse fix");
     }
+
+    [Fact]
+    public async Task GetTorrentByHash_WithExistingHash_Returns200()
+    {
+        var response = await _client.GetAsync($"/torrents/{MatrixHash}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var torrent = await response.Content.ReadFromJsonAsync<JsonElement>();
+        torrent.GetProperty("info_hash").GetString().Should().Be(MatrixHash);
+        torrent.GetProperty("raw_title").GetString().Should().Contain("The.Matrix.1999");
+    }
+
+    [Fact]
+    public async Task GetTorrentByHash_WithUnknownHash_Returns404()
+    {
+        var response = await _client.GetAsync("/torrents/0000000000000000000000000000000000000000");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

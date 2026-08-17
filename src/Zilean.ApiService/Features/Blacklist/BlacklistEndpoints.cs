@@ -8,6 +8,7 @@ public static class BlacklistEndpoints
     private const string GroupName = "blacklist";
     private const string Add = "/add";
     private const string Remove = "/remove";
+    private const string List = "/list";
 
     /// <summary>
     /// Maps the blacklist endpoints (<c>/add</c>, <c>/remove</c>), requiring API key authorization.
@@ -32,11 +33,13 @@ public static class BlacklistEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .Produces<string>(StatusCodes.Status400BadRequest)
             .Produces<string>(StatusCodes.Status409Conflict);
-
         group.MapDelete(Remove, RemoveBlacklistItem)
             .Produces(StatusCodes.Status204NoContent)
             .Produces<string>(StatusCodes.Status404NotFound)
             .Produces<string>(StatusCodes.Status400BadRequest);
+
+        group.MapGet(List, ListBlacklistItems)
+            .Produces<BlacklistedItem[]>();
 
         return group;
     }
@@ -89,6 +92,24 @@ public static class BlacklistEndpoints
         {
             logger.LogError(e, "An error occurred while adding a blacklisted item");
             return Results.BadRequest("An error occurred while adding a blacklisted item");
+        }
+    }
+
+    private static async Task<IResult> ListBlacklistItems(HttpContext context, IBlacklistService blacklistService, ILogger<BlacklistLogger> logger)
+    {
+        try
+        {
+            var items = await blacklistService.ListAsync(context.RequestAborted);
+            return Results.Ok(items);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "An error occurred while listing blacklisted items");
+            return Results.BadRequest("An error occurred while listing blacklisted items");
         }
     }
 
