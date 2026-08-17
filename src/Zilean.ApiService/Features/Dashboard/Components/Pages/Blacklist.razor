@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.Data
+@using Syncfusion.Blazor
+@using Syncfusion.Blazor.Inputs
 @using Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard
 
 <div class="container-fluid">
@@ -14,7 +16,23 @@
         <div class="col-12">
             <SfGrid TValue="BlacklistItemDetails" AllowSorting="true" AllowFiltering="true" AllowResizing="true" AllowPaging="true" Toolbar="@_toolbarOptions" EnableHover="true" EnableStickyHeader="true" GridLines="GridLine.Both" EnableAltRow="true">
                 <SfDataManager AdaptorInstance="typeof(DashboardBlacklistDataAdapter)" Adaptor="Adaptors.CustomAdaptor"></SfDataManager>
-            <GridEditSettings AllowDeleting="true" ShowDeleteConfirmDialog="true"></GridEditSettings>
+            <GridEditSettings AllowAdding="true" AllowDeleting="true" Mode="@EditMode.Dialog" ShowDeleteConfirmDialog="true" Dialog="@_dialogSettings">
+                <Template>
+                    @{
+                        if (context is BlacklistItemDetails item)
+                        {
+                            <div>
+                                <div class="form-group col-md-12">
+                                    <SfTextBox ID="InfoHash" @bind-Value="@(item.InfoHash)" FloatLabelType="FloatLabelType.Always" Placeholder="Info hash" ShowClearButton="true"></SfTextBox>
+                                </div>
+                                <div class="form-group col-md-12">
+                                    <SfTextBox ID="Reason" @bind-Value="@(item.Reason)" FloatLabelType="FloatLabelType.Always" Placeholder="Reason" ShowClearButton="true"></SfTextBox>
+                                </div>
+                            </div>
+                        }
+                    }
+                </Template>
+            </GridEditSettings>
                 <GridPageSettings PageSizes="@_pageSizes" PageSize="@_initialPageSize"></GridPageSettings>
                 <GridColumns>
                     <GridColumn Field=@nameof(BlacklistItemDetails.InfoHash) HeaderText="Info Hash" TextAlign="TextAlign.Left" Width="320" IsPrimaryKey="true" ClipMode="ClipMode.EllipsisWithTooltip" AllowResizing="true"></GridColumn>
@@ -29,5 +47,14 @@
 @code {
     private readonly Array _pageSizes = new[] { 100, 50, 25, 10 };
     private readonly int _initialPageSize = 25;
-    private readonly List<string> _toolbarOptions = ["Delete", "Search"];
+    private readonly List<string> _toolbarOptions = ["Add", "Delete", "Search"];
+    private readonly DialogSettings _dialogSettings = new()
+    {
+        Width = "500px",
+        Height = "300px",
+        CloseOnEscape = true,
+        AllowDragging = true,
+        EnableResize = true,
+        ShowCloseIcon = true,
+    };
 }

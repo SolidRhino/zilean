@@ -2,7 +2,7 @@ namespace Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard;
 
 /// <summary>
 /// Syncfusion <c>DataAdaptor</c> that bridges the blacklist dashboard grid with the
-/// <see cref="ZileanDbContext"/>, supporting read and remove operations against
+/// <see cref="ZileanDbContext"/>, supporting read, insert and remove operations against
 /// <see cref="BlacklistedItem"/> records.
 /// </summary>
 /// <param name="dbContextFactory">Factory for creating scoped <see cref="ZileanDbContext"/> instances.</param>
@@ -76,6 +76,42 @@ public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> db
         catch (Exception ex)
         {
             logger.LogError(ex, "Error reading blacklist data");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Inserts a new blacklisted item record from the supplied <see cref="BlacklistItemDetails"/>.
+    /// </summary>
+    /// <param name="dataManager">The Syncfusion data manager.</param>
+    /// <param name="value">The <see cref="BlacklistItemDetails"/> to insert.</param>
+    /// <param name="key">The primary key field name.</param>
+    /// <returns>The inserted value, or <c>null</c> when the value is not a <see cref="BlacklistItemDetails"/>.</returns>
+    public override async Task<object> InsertAsync(DataManager dataManager, object? value, string key)
+    {
+        try
+        {
+            if (value is not BlacklistItemDetails incoming)
+            {
+                return null;
+            }
+
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+
+            var item = new BlacklistedItem
+            {
+                InfoHash = incoming.InfoHash,
+                Reason = incoming.Reason,
+                BlacklistedAt = DateTime.UtcNow
+            };
+
+            await dbContext.BlacklistedItems.AddAsync(item);
+            await dbContext.SaveChangesAsync();
+            return value;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error inserting blacklist data");
             throw;
         }
     }

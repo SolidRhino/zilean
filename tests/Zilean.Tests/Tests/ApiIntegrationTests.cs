@@ -207,4 +207,48 @@ public class ApiIntegrationTests
         results!.Should().Contain(t => t.ImdbId == "tt0133093",
             "trailing year in Query should be extracted and matched against Year filter on /dmm/filtered");
     }
+
+    [Fact]
+    public async Task DmmSearch_Post_ReturnsResults_WhenTitleMatches()
+    {
+        // POST /dmm/search calls ITorrentInfoService.SearchForTorrentInfoByOnlyTitle,
+        // the same service method the dashboard /search page uses. Verifies the happy path
+        // returns matching torrents for a seed-data title.
+        var response = await _client.PostAsync(
+            "/dmm/search",
+            new StringContent(
+                """{"QueryText":"The Matrix"}""",
+                Encoding.UTF8,
+                "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "because a valid search query must return 200 with results");
+
+        var results = JsonSerializer.Deserialize<TorrentInfo[]>(await response.Content.ReadAsStringAsync());
+        results.Should().NotBeNull();
+        results!.Should().Contain(t => t.ImdbId == "tt0133093",
+            "because searching for 'The Matrix' must return the seeded Matrix torrent (tt0133093)");
+    }
+
+    [Fact]
+    public async Task DmmSearch_Post_WithUnknownTitle_ReturnsEmptyArray()
+    {
+        // Verifies that a search for a title not in the seed data returns an empty array,
+        // not an error. This is the path the dashboard /search page takes when no results.
+        var response = await _client.PostAsync(
+            "/dmm/search",
+            new StringContent(
+                """{"QueryText":"Nonexistent Torrent Title XYZ123"}""",
+                Encoding.UTF8,
+                "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK,
+            "because an unknown title must still return 200 with an empty array");
+
+        var body = await response.Content.ReadAsStringAsync();
+        var results = JsonSerializer.Deserialize<TorrentInfo[]>(body);
+        results.Should().NotBeNull();
+        results!.Should().BeEmpty(
+            "because no seed-data torrent matches 'Nonexistent Torrent Title XYZ123'");
+    }
 }
