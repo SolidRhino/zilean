@@ -17,11 +17,16 @@
             <SfGrid TValue="BlacklistItemDetails" AllowSorting="true" AllowFiltering="true" AllowResizing="true" AllowPaging="true" Toolbar="@_toolbarOptions" EnableHover="true" EnableStickyHeader="true" GridLines="GridLine.Both" EnableAltRow="true">
                 <SfDataManager AdaptorInstance="typeof(DashboardBlacklistDataAdapter)" Adaptor="Adaptors.CustomAdaptor"></SfDataManager>
             <GridEditSettings AllowAdding="true" AllowDeleting="true" Mode="@EditMode.Dialog" ShowDeleteConfirmDialog="true" Dialog="@_dialogSettings">
+                <Validator>
+                    <DataAnnotationsValidator></DataAnnotationsValidator>
+                </Validator>
                 <Template>
                     @{
                         if (context is BlacklistItemDetails item)
                         {
                             <div>
+                                <ValidationMessage For="() => item.InfoHash"/>
+                                <ValidationMessage For="() => item.Reason"/>
                                 <div class="form-group col-md-12">
                                     <SfTextBox ID="InfoHash" @bind-Value="@(item.InfoHash)" FloatLabelType="FloatLabelType.Always" Placeholder="Info hash" ShowClearButton="true"></SfTextBox>
                                 </div>

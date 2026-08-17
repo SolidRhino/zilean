@@ -3,11 +3,13 @@ namespace Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard;
 /// <summary>
 /// Syncfusion <c>DataAdaptor</c> that bridges the blacklist dashboard grid with the
 /// <see cref="ZileanDbContext"/>, supporting read, insert and remove operations against
-/// <see cref="BlacklistedItem"/> records.
+/// <see cref="BlacklistedItem"/> records. Insert delegates to <see cref="IBlacklistService.AddAsync"/>
+/// to preserve the domain contract (validation, duplicate rejection, torrent removal).
 /// </summary>
 /// <param name="dbContextFactory">Factory for creating scoped <see cref="ZileanDbContext"/> instances.</param>
+/// <param name="blacklistService">The blacklist service enforcing the domain contract.</param>
 /// <param name="logger">Logger for recording data operation failures.</param>
-public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> dbContextFactory, ILogger<DashboardBlacklistDataAdapter> logger) : DataAdaptor
+public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> dbContextFactory, IBlacklistService blacklistService, ILogger<DashboardBlacklistDataAdapter> logger) : DataAdaptor
 {
     /// <summary>
     /// Reads blacklisted item records from the database applying the Syncfusion data manager
@@ -81,12 +83,17 @@ public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> db
     }
 
     /// <summary>
-    /// Inserts a new blacklisted item record from the supplied <see cref="BlacklistItemDetails"/>.
+    /// Inserts a new blacklisted item record from the supplied <see cref="BlacklistItemDetails"/>,
+    /// delegating to <see cref="IBlacklistService.AddAsync"/> to preserve the domain contract:
+    /// validates <c>InfoHash</c> and <c>Reason</c>, rejects duplicates, and removes the matching
+    /// torrent from the <c>Torrents</c> table if present.
     /// </summary>
     /// <param name="dataManager">The Syncfusion data manager.</param>
     /// <param name="value">The <see cref="BlacklistItemDetails"/> to insert.</param>
     /// <param name="key">The primary key field name.</param>
-    /// <returns>The inserted value, or <c>null</c> when the value is not a <see cref="BlacklistItemDetails"/>.</returns>
+    /// <returns>The inserted value on success, or <c>null</c> when the value is not a
+    /// <see cref="BlacklistItemDetails"/> or when the domain contract rejects the insert
+    /// (invalid hash/reason, duplicate).</returns>
     public override async Task<object> InsertAsync(DataManager dataManager, object? value, string key)
     {
         try
@@ -96,17 +103,14 @@ public class DashboardBlacklistDataAdapter(IDbContextFactory<ZileanDbContext> db
                 return null;
             }
 
-            await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+            var result = await blacklistService.AddAsync(incoming.InfoHash!, incoming.Reason!, default);
 
-            var item = new BlacklistedItem
+            if (result != BlacklistResult.Added)
             {
-                InfoHash = incoming.InfoHash,
-                Reason = incoming.Reason,
-                BlacklistedAt = DateTime.UtcNow
-            };
+                logger.LogWarning("Dashboard blacklist insert rejected: {Result} (hash={Hash})", result, incoming.InfoHash);
+                return null;
+            }
 
-            await dbContext.BlacklistedItems.AddAsync(item);
-            await dbContext.SaveChangesAsync();
             return value;
         }
         catch (Exception ex)

@@ -74,7 +74,7 @@ public static class SearchEndpoints
 
         logger.LogInformation("Trying to schedule on-demand scrape with a 1 minute timeout on lock acquisition.");
 
-        bool available = mutex.TryGetLock(nameof(DmmSyncJob), 1);
+        bool available = mutex.TryGetLock("SyncJobs", 1);
 
         if(available)
         {
@@ -86,7 +86,7 @@ public static class SearchEndpoints
             }
             finally
             {
-                mutex.Release(nameof(DmmSyncJob));
+                mutex.Release("SyncJobs");
                 state.IsRunning = false;
             }
 
@@ -111,7 +111,7 @@ public static class SearchEndpoints
 
         logger.LogInformation("Trying to schedule on-demand generic sync with a 1 minute timeout on lock acquisition.");
 
-        bool available = mutex.TryGetLock(nameof(GenericSyncJob), 1);
+        bool available = mutex.TryGetLock("SyncJobs", 1);
 
         if (available)
         {
@@ -123,7 +123,7 @@ public static class SearchEndpoints
             }
             finally
             {
-                mutex.Release(nameof(GenericSyncJob));
+                mutex.Release("SyncJobs");
                 state.IsRunning = false;
             }
 

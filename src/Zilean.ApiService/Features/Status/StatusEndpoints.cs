@@ -76,11 +76,18 @@ public static class StatusEndpoints
             blacklistedCount = await dbContext.BlacklistedItems.AsNoTracking().LongCountAsync();
             parsedPagesCount = await dbContext.ParsedPages.AsNoTracking().LongCountAsync();
 
-            movieCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "movie");
-            tvCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "tvSeries");
-            bookCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "book");
-            audiobookCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "audiobook");
-            xxxCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "xxx");
+            var categoryCounts = await dbContext.Torrents
+                .AsNoTracking()
+                .Where(x => x.Category != null)
+                .GroupBy(x => x.Category)
+                .Select(g => new { Category = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(g => g.Category, g => g.Count);
+
+            movieCount = categoryCounts.GetValueOrDefault("movie");
+            tvCount = categoryCounts.GetValueOrDefault("tvSeries");
+            bookCount = categoryCounts.GetValueOrDefault("book");
+            audiobookCount = categoryCounts.GetValueOrDefault("audiobook");
+            xxxCount = categoryCounts.GetValueOrDefault("xxx");
 
             var dmmService = serviceProvider.GetRequiredService<DmmService>();
             dmmLastImport = await dmmService.GetDmmLastImportAsync(default);

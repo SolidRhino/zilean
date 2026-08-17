@@ -211,11 +211,18 @@
             await using var dbContext = await DbContextFactory.CreateDbContextAsync();
             _databaseHealthy = true;
 
-            _movieCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "movie");
-            _tvCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "tvSeries");
-            _bookCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "book");
-            _audiobookCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "audiobook");
-            _xxxCount = await dbContext.Torrents.AsNoTracking().LongCountAsync(x => x.Category == "xxx");
+            var categoryCounts = await dbContext.Torrents
+                .AsNoTracking()
+                .Where(x => x.Category != null)
+                .GroupBy(x => x.Category)
+                .Select(g => new { Category = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(g => g.Category, g => g.Count);
+
+            _movieCount = categoryCounts.GetValueOrDefault("movie");
+            _tvCount = categoryCounts.GetValueOrDefault("tvSeries");
+            _bookCount = categoryCounts.GetValueOrDefault("book");
+            _audiobookCount = categoryCounts.GetValueOrDefault("audiobook");
+            _xxxCount = categoryCounts.GetValueOrDefault("xxx");
 
             _torrentCount = await dbContext.Torrents.AsNoTracking().LongCountAsync();
             _imdbFileCount = await dbContext.ImdbFiles.AsNoTracking().LongCountAsync();
@@ -253,7 +260,7 @@
         {
             try
             {
-                if (Mutex.TryGetLock(nameof(DmmSyncJob), 1))
+                if (Mutex.TryGetLock("SyncJobs", 1))
                 {
                     try
                     {
@@ -262,7 +269,7 @@
                     }
                     finally
                     {
-                        Mutex.Release(nameof(DmmSyncJob));
+                        Mutex.Release("SyncJobs");
                         SyncState.IsRunning = false;
                     }
                 }

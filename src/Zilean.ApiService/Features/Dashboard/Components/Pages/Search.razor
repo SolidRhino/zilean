@@ -22,7 +22,11 @@
 
     @if (_searched)
     {
-        @if (_results.Count == 0)
+        @if (_error)
+        {
+            <div class="alert alert-danger">Search failed. Check logs for details.</div>
+        }
+        else if (_results.Count == 0)
         {
             <div class="alert alert-warning">No torrents found for '@_query'.</div>
         }
@@ -71,21 +75,49 @@
 @code {
     private string _query = string.Empty;
     private bool _searched;
+    private bool _error;
     private List<DashboardTorrentDetails> _results = [];
+    private int _searchRequestId;
 
     [Inject] ITorrentInfoService TorrentInfoService { get; set; } = default!;
+    [Inject] ILogger<Search> _logger { get; set; } = default!;
 
     private async Task SearchAsync()
     {
         _searched = false;
+        _error = false;
 
         if (string.IsNullOrWhiteSpace(_query))
         {
             return;
         }
 
-        var results = await TorrentInfoService.SearchForTorrentInfoByOnlyTitle(_query.Trim());
-        _results = results.Select(DashboardTorrentDetails.FromTorrentInfo).ToList();
-        _searched = true;
+        var requestId = ++_searchRequestId;
+        var queryText = _query.Trim();
+
+        try
+        {
+            var results = await TorrentInfoService.SearchForTorrentInfoByOnlyTitle(queryText);
+
+            // Only apply results if this is still the latest search request.
+            if (requestId != _searchRequestId)
+            {
+                return;
+            }
+
+            _results = results.Select(DashboardTorrentDetails.FromTorrentInfo).ToList();
+            _searched = true;
+        }
+        catch (Exception ex)
+        {
+            if (requestId != _searchRequestId)
+            {
+                return;
+            }
+
+            _logger.LogError(ex, "Search for '{Query}' failed", queryText);
+            _error = true;
+            _searched = true;
+        }
     }
 }
