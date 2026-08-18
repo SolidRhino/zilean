@@ -12,8 +12,8 @@ public static class StatusEndpoints
 
     /// <summary>
     /// Maps the status endpoint (<c>/status</c>), exposing operational metadata (database health,
-    /// counts, last import timestamps, sync state, Python runtime availability). Anonymous, like
-    /// the health check endpoints — exposes no secrets.
+    /// counts, per-category torrent counts, last import timestamps, sync state, Python runtime
+    /// availability). Anonymous, like the health check endpoints — exposes no secrets.
     /// </summary>
     /// <param name="app">The web application.</param>
     /// <returns>The web application with the status endpoint mapped.</returns>
@@ -56,6 +56,11 @@ public static class StatusEndpoints
         long imdbFileCount = 0;
         long blacklistedCount = 0;
         long parsedPagesCount = 0;
+        long movieCount = 0;
+        long tvCount = 0;
+        long bookCount = 0;
+        long audiobookCount = 0;
+        long xxxCount = 0;
         DmmLastImport? dmmLastImport = null;
         ImdbLastImport? imdbLastImport = null;
         bool isSyncRunning = false;
@@ -70,6 +75,19 @@ public static class StatusEndpoints
             imdbFileCount = await dbContext.ImdbFiles.AsNoTracking().LongCountAsync();
             blacklistedCount = await dbContext.BlacklistedItems.AsNoTracking().LongCountAsync();
             parsedPagesCount = await dbContext.ParsedPages.AsNoTracking().LongCountAsync();
+
+            var categoryCounts = await dbContext.Torrents
+                .AsNoTracking()
+                .Where(x => x.Category != null)
+                .GroupBy(x => x.Category)
+                .Select(g => new { Category = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(g => g.Category, g => g.Count);
+
+            movieCount = categoryCounts.GetValueOrDefault("movie");
+            tvCount = categoryCounts.GetValueOrDefault("tvSeries");
+            bookCount = categoryCounts.GetValueOrDefault("book");
+            audiobookCount = categoryCounts.GetValueOrDefault("audiobook");
+            xxxCount = categoryCounts.GetValueOrDefault("xxx");
 
             var dmmService = serviceProvider.GetRequiredService<DmmService>();
             dmmLastImport = await dmmService.GetDmmLastImportAsync(default);
@@ -100,6 +118,14 @@ public static class StatusEndpoints
                 imdbFiles = imdbFileCount,
                 blacklisted = blacklistedCount,
                 parsedPages = parsedPagesCount,
+            },
+            categories = new
+            {
+                movies = movieCount,
+                tv = tvCount,
+                books = bookCount,
+                audiobooks = audiobookCount,
+                xxx = xxxCount,
             },
             dmmLastImport = dmmLastImport is null ? null : new
             {

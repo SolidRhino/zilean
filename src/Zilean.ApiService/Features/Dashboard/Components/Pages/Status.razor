@@ -38,7 +38,13 @@
             <div class="col-md-3">
                 <div class="card">
                     <div class="card-header">Sync Running</div>
-                    <div class="card-body">@(_isSyncRunning ? "Yes" : "No")</div>
+                    <div class="card-body">
+                        @(_isSyncRunning ? "Yes" : "No")
+                        @if (!_isSyncRunning)
+                        {
+                            <button class="btn btn-sm btn-primary mt-2" @onclick="TriggerSyncAsync">Sync Now</button>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -66,6 +72,39 @@
                 <div class="card">
                     <div class="card-header">Parsed Pages</div>
                     <div class="card-body">@_parsedPagesCount.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">Movies</div>
+                    <div class="card-body">@_movieCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">TV</div>
+                    <div class="card-body">@_tvCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">Books</div>
+                    <div class="card-body">@_bookCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">Audiobooks</div>
+                    <div class="card-body">@_audiobookCount.ToString("N0")</div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">XXX</div>
+                    <div class="card-body">@_xxxCount.ToString("N0")</div>
                 </div>
             </div>
         </div>
@@ -120,6 +159,11 @@
     private long _imdbFileCount;
     private long _blacklistedCount;
     private long _parsedPagesCount;
+    private long _movieCount;
+    private long _tvCount;
+    private long _bookCount;
+    private long _audiobookCount;
+    private long _xxxCount;
     private DmmLastImport? _dmmLastImport;
     private ImdbLastImport? _imdbLastImport;
     private PeriodicTimer? _timer;
@@ -131,6 +175,8 @@
     [Inject] SyncOnDemandState SyncState { get; set; } = default!;
     [Inject] PythonRuntimeService PythonRuntime { get; set; } = default!;
     [Inject] ILogger<Status> _logger { get; set; } = default!;
+    [Inject] DmmSyncJob DmmSyncJob { get; set; } = default!;
+    [Inject] IMutex Mutex { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -165,6 +211,19 @@
             await using var dbContext = await DbContextFactory.CreateDbContextAsync();
             _databaseHealthy = true;
 
+            var categoryCounts = await dbContext.Torrents
+                .AsNoTracking()
+                .Where(x => x.Category != null)
+                .GroupBy(x => x.Category)
+                .Select(g => new { Category = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(g => g.Category, g => g.Count);
+
+            _movieCount = categoryCounts.GetValueOrDefault("movie");
+            _tvCount = categoryCounts.GetValueOrDefault("tvSeries");
+            _bookCount = categoryCounts.GetValueOrDefault("book");
+            _audiobookCount = categoryCounts.GetValueOrDefault("audiobook");
+            _xxxCount = categoryCounts.GetValueOrDefault("xxx");
+
             _torrentCount = await dbContext.Torrents.AsNoTracking().LongCountAsync();
             _imdbFileCount = await dbContext.ImdbFiles.AsNoTracking().LongCountAsync();
             _blacklistedCount = await dbContext.BlacklistedItems.AsNoTracking().LongCountAsync();
@@ -185,6 +244,46 @@
         }
 
         _loading = false;
+    }
+
+    private async Task TriggerSyncAsync()
+    {
+        if (SyncState.IsRunning)
+        {
+            return;
+        }
+
+        _isSyncRunning = true;
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (Mutex.TryGetLock("SyncJobs", 1))
+                {
+                    try
+                    {
+                        SyncState.IsRunning = true;
+                        await DmmSyncJob.Invoke();
+                    }
+                    finally
+                    {
+                        Mutex.Release("SyncJobs");
+                        SyncState.IsRunning = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "On-demand DMM sync from dashboard failed");
+            }
+            finally
+            {
+                _isSyncRunning = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        });
     }
 
     private static string GetStatusBadgeClass(string status) => status switch

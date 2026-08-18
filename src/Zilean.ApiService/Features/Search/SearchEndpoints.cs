@@ -9,10 +9,12 @@ public static class SearchEndpoints
     private const string Search = "/search";
     private const string Filtered = "/filtered";
     private const string Ingest = "/on-demand-scrape";
+    private const string GenericIngest = "/on-demand-generic-sync";
 
     /// <summary>
-    /// Maps the DMM search endpoints (<c>/search</c>, <c>/filtered</c>, <c>/on-demand-scrape</c>),
-    /// gated by <c>configuration.Dmm.EnableEndpoint</c>.
+    /// Maps the DMM search endpoints (<c>/search</c>, <c>/filtered</c>, <c>/on-demand-scrape</c>,
+    /// <c>/on-demand-generic-sync</c>), gated by <c>configuration.Dmm.EnableEndpoint</c> and
+    /// the respective <c>EnableScraping</c> flags.
     /// </summary>
     /// <param name="app">The web application.</param>
     /// <param name="configuration">The Zilean configuration.</param>
@@ -47,6 +49,13 @@ public static class SearchEndpoints
                 .WithMetadata(new OpenApiSecurityMetadata(ApiKeyAuthentication.Scheme));
         }
 
+        if (configuration.Ingestion.EnableScraping)
+        {
+            group.MapGet(GenericIngest, PerformOnDemandGenericSync)
+                .RequireAuthorization(ApiKeyAuthentication.Policy)
+                .WithMetadata(new OpenApiSecurityMetadata(ApiKeyAuthentication.Scheme));
+        }
+
         return group;
     }
 
@@ -65,7 +74,7 @@ public static class SearchEndpoints
 
         logger.LogInformation("Trying to schedule on-demand scrape with a 1 minute timeout on lock acquisition.");
 
-        bool available = mutex.TryGetLock(nameof(DmmSyncJob), 1);
+        bool available = mutex.TryGetLock("SyncJobs", 1);
 
         if(available)
         {
@@ -77,7 +86,7 @@ public static class SearchEndpoints
             }
             finally
             {
-                mutex.Release(nameof(DmmSyncJob));
+                mutex.Release("SyncJobs");
                 state.IsRunning = false;
             }
 
@@ -85,6 +94,43 @@ public static class SearchEndpoints
         }
 
         logger.LogWarning("Failed to acquire lock for on-demand scrape.");
+    }
+
+    private static async Task PerformOnDemandGenericSync(
+        HttpContext context,
+        ILogger<GeneralInstance> logger,
+        IMutex mutex,
+        SyncOnDemandState state,
+        GenericSyncJob genericJob)
+    {
+        if (state.IsRunning)
+        {
+            logger.LogWarning("On-demand generic sync already running.");
+            return;
+        }
+
+        logger.LogInformation("Trying to schedule on-demand generic sync with a 1 minute timeout on lock acquisition.");
+
+        bool available = mutex.TryGetLock("SyncJobs", 1);
+
+        if (available)
+        {
+            try
+            {
+                logger.LogInformation("On-demand generic sync mutex lock acquired.");
+                state.IsRunning = true;
+                await genericJob.Invoke();
+            }
+            finally
+            {
+                mutex.Release("SyncJobs");
+                state.IsRunning = false;
+            }
+
+            return;
+        }
+
+        logger.LogWarning("Failed to acquire lock for on-demand generic sync.");
     }
 
     private static async Task<Ok<TorrentInfo[]>> PerformSearch(HttpContext context, ITorrentInfoService torrentInfoService, ZileanConfiguration configuration, ILogger<DmmUnfilteredInstance> logger, [FromBody] DmmQueryRequest queryRequest)

@@ -1,0 +1,123 @@
+@page "/search"
+@rendermode InteractiveServer
+@using Syncfusion.Blazor.Inputs
+@using Syncfusion.Blazor.Buttons
+@using Zilean.ApiService.Features.Dashboard.Components.Pages.Dashboard
+@using Zilean.Database.Services
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3>Torrent Search</h3>
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <SfTextBox @bind-Value="_query" Placeholder="Enter title (e.g. Iron Man 3)" FloatLabelType="FloatLabelType.Always" ShowClearButton="true"></SfTextBox>
+        </div>
+        <div class="col-md-2">
+            <SfButton Content="Search" OnClick="SearchAsync"></SfButton>
+        </div>
+    </div>
+
+    @if (_searched)
+    {
+        @if (_error)
+        {
+            <div class="alert alert-danger">Search failed. Check logs for details.</div>
+        }
+        else if (_results.Count == 0)
+        {
+            <div class="alert alert-warning">No torrents found for '@_query'.</div>
+        }
+        else
+        {
+            <div class="row">
+                <div class="col-12">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Info Hash</th>
+                                <th>Raw Title</th>
+                                <th>Parsed Title</th>
+                                <th>Category</th>
+                                <th>Year</th>
+                                <th>Size</th>
+                                <th>IMDb ID</th>
+                                <th>Adult</th>
+                                <th>Trash</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in _results)
+                            {
+                                <tr>
+                                    <td>@item.InfoHash</td>
+                                    <td>@item.RawTitle</td>
+                                    <td>@item.ParsedTitle</td>
+                                    <td>@item.Category</td>
+                                    <td>@item.Year</td>
+                                    <td>@item.Size</td>
+                                    <td>@item.ImdbId</td>
+                                    <td>@item.IsAdult</td>
+                                    <td>@item.Trash</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="text-muted">@_results.Count result(s)</p>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private string _query = string.Empty;
+    private bool _searched;
+    private bool _error;
+    private List<DashboardTorrentDetails> _results = [];
+    private int _searchRequestId;
+
+    [Inject] ITorrentInfoService TorrentInfoService { get; set; } = default!;
+    [Inject] ILogger<Search> _logger { get; set; } = default!;
+
+    private async Task SearchAsync()
+    {
+        _searched = false;
+        _error = false;
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            return;
+        }
+
+        var requestId = ++_searchRequestId;
+        var queryText = _query.Trim();
+
+        try
+        {
+            var results = await TorrentInfoService.SearchForTorrentInfoByOnlyTitle(queryText);
+
+            // Only apply results if this is still the latest search request.
+            if (requestId != _searchRequestId)
+            {
+                return;
+            }
+
+            _results = results.Select(DashboardTorrentDetails.FromTorrentInfo).ToList();
+            _searched = true;
+        }
+        catch (Exception ex)
+        {
+            if (requestId != _searchRequestId)
+            {
+                return;
+            }
+
+            _logger.LogError(ex, "Search for '{Query}' failed", queryText);
+            _error = true;
+            _searched = true;
+        }
+    }
+}
